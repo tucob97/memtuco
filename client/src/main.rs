@@ -6,6 +6,14 @@ use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 use std::fmt;
 
+
+const SQL_COMMANDS: &[&str] = &[
+    "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE",
+    "EXPLAIN",
+];
+
+
+
 #[derive(Debug)]
 enum SqlValue {
     TINYINT(i8), SMALLINT(i16), INT(i32), BIGINT(i64), UTINYINT(u8),
@@ -108,7 +116,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         else if upper_cmd == "ROLLBACK" { (OP_ROLLBACK, vec![]) }
         else if upper_cmd == "DEBUG" { (OP_DEBUG, vec![]) }
         else if upper_cmd == "INFO" { (OP_INFO, vec![]) }
-        else { (OP_QUERY, trimmed.as_bytes().to_vec()) };
+        else {
+            // Try to detect valid SQL verb before sending to server
+            let first_word = trimmed.split_whitespace().next().unwrap_or("").to_uppercase();
+            if SQL_COMMANDS.contains(&first_word.as_str()) {
+                (OP_QUERY, trimmed.as_bytes().to_vec())
+            } else {
+                println!("Unknown command or invalid SQL start: '{}'", first_word);
+                continue; // Skip sending to server
+            }
+        };
+        
 
         if let Err(e) = send_packet(&mut stream, opcode, &payload) {
             eprintln!("Connection error: {}. Please restart client.", e); break;
