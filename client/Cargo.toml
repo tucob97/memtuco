@@ -1,7 +1,8 @@
 [package]
 name = "client"
 version = "0.1.1"
-edition = "2024"
+edition = "2021"
+rust-version = "1.75"
 
 [dependencies]
-rustyline = "14.0.0"
+rustyline = "11.0.0"
