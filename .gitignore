@@ -1,0 +1,12 @@
+/target
+*.csv
+*.db
+*.idx
+comment.rs
+/mydb
+/tucotemp
+/data
+query_ex.txt
+out.txt
+memtuco_history.txt
+.tuco_history
