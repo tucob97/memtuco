@@ -151,9 +151,76 @@ impl FileHandle {
 
 // ══════════════════════════════════════ STORAGE MANAGER ══════════════════════════════════════
 
-/// The struct responsible for read & write files. So thanks to that we can 
-/// build the journal, because it store each page that it is supposed
-/// to write
+/// StorageManager is the struct responsible for read & write files. So thanks to that we can 
+/// build the journal, because it store each page that it is supposed to write
+/// 
+/// What happen inside the Journal File? How is writed?
+///
+/// /// /// This system uses **physical logging**. Instead of recording the logical `UPDATE`
+/// /// /// operation, we save the *entire original page image* before modification.
+/// /// /// This simplifies recovery immensely. The `StorageManager` creates these records.
+/// /// ///
+/// /// /// /// Byte layout for a journal entry for a page in `users.tbl`:
+/// /// ///
+/// /// /// +------------------------------------------------------------------------------------------------------+
+/// /// /// | [ 00 00 00 09 ] [ 75 73 65 72 73 2E 74 62 6C ]   [ 00 00 00 00 00 00 14 00 ] [ ... 1024 bytes ... ]  |
+/// /// /// +---------------+---------------------------------+---------------------------+------------------------+
+/// /// /// | File Name Len | File Name ("users.tbl")         | Page Offset (u64)         | Original Page Image    |
+/// /// /// | (u32, big-e)  | (9 bytes)                       | e.g., 5120 for page 5     | (1024 bytes)           |
+/// /// /// +------------------------------------------------------------------------------------------------------+
+/// ///
+///
+/// So at this point the question is, why not save directly the page_num?
+/// 
+/// That's the perfect question to ask next. It seems more direct and space-efficient
+/// to just store the page index. But sincerely i do not know if at certain point
+/// i dedice to change some page size for example, and so this can lead to 
+/// error offset calculation. And because it works perfectly i'm not touch it anymore
+/// 
+/// ### Recovery Speed and Simplicity
+///
+/// /// A transaction rollback or crash recovery is a critical operation.
+/// /// The goal is to make the recovery code as simple, fast, and "dumb" as possible,
+/// /// because simple code has fewer places to fail.
+///
+/// /// **Scenario A: Journal stores the Physical Offset (Our Current Design)**
+/// /// The recovery process is a tight, brain-dead loop:
+/// /// 1. Read the file name (`"users.tbl"`).
+/// /// 2. Read the physical offset (`5120`).
+/// /// 3. Read the 1024-byte page image.
+/// /// 4. `seek()` directly to byte `5120` in the target file.
+/// /// 5. `write()` the 1024 bytes.
+/// /// 6. Repeat.
+///
+/// /// Notice there are **zero calculations** in this loop. It's just reading and
+/// /// writing raw bytes to a known location.
+///
+/// /// +------------------+     +-------------------+     +-----------------+
+/// /// | Read Journal     | --> | Read Offset: 5120 | --> | Seek & Write    |
+/// /// | (offset, data)   |     +-------------------+     | at byte 5120    |
+/// /// +------------------+                               +-----------------+
+///
+/// ### Instead for storing
+/// 
+/// /// We check first if page is arleady stored
+/// /// Our `PAGE_SIZE` is `1024`, which is `2^10`.
+///
+/// /// The compiler knows that dividing an integer by `2^10` is mathematically
+/// /// identical to performing a **bitwise right shift** by 10 positions. 
+/// /// So, while we **write** this readable code in Rust:
+/// /// ```rust
+/// /// /// let page_number = pos / 1024;
+/// /// ```
+/// /// We write this code like this for clarity, and trust the compiler to make it fast.
+/// 
+/// /// Example Offset Calculation:
+/// /// The `Page Offset` can be calculated as `page_index * PAGE_SIZE`.
+/// /// - Page 0 is at offset `0 * 1024 = 0`.
+/// /// - Page 1 is at offset `1 * 1024 = 1024`.
+/// /// - Page 5 is at offset `5 * 1024 = 5120` (Hex: `0x1400`).
+
+
+
 #[derive(Debug)]
 pub struct StorageManager {
     handles: HashMap<String, FileHandle>,
@@ -446,6 +513,67 @@ impl StorageManager {
 /// Is the in-Memory orchestrator for the database
 /// run and execute query, store metadata, and is responsible
 /// for commit & rollback operation
+/// 
+/// ///////////////////////////////////////////////////////////////////////////////
+/// /// Query Execution, Schema, and Data Flow
+/// ///////////////////////////////////////////////////////////////////////////////
+///
+/// /// Engine uses the Volcano/Iterator model. Each stage of a query plan is an
+/// /// "Executor" that pulls rows from its child, processes them, and yields them
+/// /// to its parent. We will trace the query:
+/// /// `SELECT name, (age * 2) AS doubled_age FROM users WHERE age > 30 ORDER BY name;`
+///
+/// /// /// The core abstraction is the `RowIterator` trait. Every plan
+/// /// /// node implements this, allowing them to be chained together in a pipeline.
+/// 
+///
+/// /// ### Execution Plan and Data Flow Diagram
+/// ///
+/// /// /// The `Planner` builds a tree of executors. Data flows from the bottom up.
+/// ///
+/// /// /// Query: SELECT name, (age * 2) FROM users WHERE age > 30 ORDER BY name;
+/// ///
+/// /// /// +---------------------------------------------------------------------------------+
+/// /// /// |                            CLIENT RECEIVES ROWS                                 |
+/// /// /// +------------------------------------^--------------------------------------------+
+/// /// ///                                      |
+/// /// /// +------------------------------------+--------------------------------------------+
+/// /// /// | 4. PROJECTION                      | Emits a *new*, smaller row.                 |
+/// /// /// |------------------------------------|---------------------------------------------|
+/// /// /// | Input Schema:  (id, name, age, status)                                          |
+/// /// /// | Output Schema: (name, (age * 2))                                              |
+/// /// /// | Row In:  (id:3, name:"Charlie", age:40, status:"active")                        |
+/// /// /// | Row Out: ("Charlie", 80.0)                                                      |
+/// /// /// +------------------------------------^--------------------------------------------+
+/// /// ///                                      | (Full, sorted rows)
+/// /// /// +------------------------------------+--------------------------------------------+
+/// /// /// | 3. ORDER BY                        | Buffers all rows, sorts them, then yields.  |
+/// /// /// |------------------------------------|---------------------------------------------|
+/// /// /// | Input Schema:  (id, name, age, status)                                          |
+/// /// /// | Output Schema: (id, name, age, status) <- UNCHANGED                             |
+/// /// /// | Action: Sorts incoming rows based on the `name` column. `age` is available      |
+/// /// /// |         here for sorting, even if not in the final output.                      |
+/// /// /// +------------------------------------^--------------------------------------------+
+/// /// ///                                      | (Filtered rows)
+/// /// /// +------------------------------------+--------------------------------------------+
+/// /// /// | 2. FILTER                          | Yields row only if predicate is true.       |
+/// /// /// |------------------------------------|---------------------------------------------|
+/// /// /// | Input Schema:  (id, name, age, status)                                          |
+/// /// /// | Output Schema: (id, name, age, status) <- UNCHANGED                             |
+/// /// /// | Row In:  (id:2, name:"Bob", age:25, status:"active") -> age>30 is false -> DROP  |
+/// /// /// | Row In:  (id:3, name:"Charlie", age:40, status:"active") -> true -> PASS        |
+/// /// /// +------------------------------------^--------------------------------------------+
+/// /// ///                                      | (All rows from disk)
+/// /// /// +------------------------------------+--------------------------------------------+
+/// /// /// | 1. TABLE SCAN                      | Reads and deserializes rows from storage.   |
+/// /// /// |------------------------------------|---------------------------------------------|
+/// /// /// | Output Schema: (id, name, age, status)                                          |
+/// /// /// +---------------------------------------------------------------------------------+
+/// /// /// |                               users.tbl                                         |
+/// /// /// +---------------------------------------------------------------------------------+
+
+
+
 #[derive()]
 pub struct DatabaseEngine {
     pub db_folder: PathBuf,

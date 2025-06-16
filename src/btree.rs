@@ -17,6 +17,34 @@ use crate::constant::{BTREE_INIT_SPACE, PAGE_CAPACITY, NODE_CAPACITY, PAGE_SIZE}
 use crate::dbengine::*;
 use crate::dberror::DbError;
 
+
+
+
+
+///+----------------------------------------------------------------------------------------+
+///|                               BTreeNode  - 1024 bytes                                  |
+///+----------------------------------------------------------------------------------------+
+///|                                    Serialized Data                                     |
+///|                                                                                        |
+///| +-------------------------+                                                            |
+///| | is_root: bool           |                                                            |
+///| | is_leaf: false          | // This flag is false for internal nodes                   |
+///| | keys: Vec<Triplet>      | // Keys to guide search                                    | 
+///| | children: Vec<usize>    | // Page indices of child nodes                             |
+///| +-------------------------+                                                            |
+///|                                                                                        |
+///|   ideal_Layout: [Pointer_0] [Key_1] [Pointer_1]... [Key_N] [Pointer_N]                 |
+///|                                                                                        |
+///|   - Each Triplet contains: { key: SqlValue, page: usize, rowid: usize }                |
+///|   - Pointer_i is an index to a child page where keys are < Key_{i+1}.                  |
+///|   - Key_i is a Triplet, but only its `key` value is used for comparison.               |
+///|   - The (page, rowid) pair is the direct pointer to the data row.                      |
+///|                                                                                        |
+///+----------------------------------------------------------------------------------------+
+///|                                   Free Space (Padding)                                 |
+///+----------------------------------------------------------------------------------------+
+
+
 // ══════════════════════════════════════ A TRIPLET DEFINITION ══════════════════════════════════════
 
 /// Why Triplet?-> Store key -> [Page_num + row_id]

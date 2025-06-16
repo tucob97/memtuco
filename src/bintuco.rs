@@ -324,6 +324,42 @@ impl BintucoDecode for Btree {
     }
 }
 
+
+/// ///////////////////////////////////////////////////////////////////////////////
+/// /// #. Data Serialization and Deserialization
+/// ///////////////////////////////////////////////////////////////////////////////
+/// /// Abstract data structures are converted to and from byte streams by 
+/// /// `bintuco` module.
+/// 
+/// /// ### On-Disk Row Format (Visualized)
+/// 
+/// 
+/// Example to understand what happen for SQLValue encoding
+/// 
+/// [ 02 00 00 00 ] [ 02 ] [ 02 00 00 00 ]  [ 09 ]   [ 03 00 00 00 ]  [ 42 6F 62 ]
+/// |-------------| |----| |-------------|  |----|   |-------------|  |---------|
+///  Vec length: 2   Tag:   INT value: 2     Tag:     VARCHAR len: 3     "Bob"
+/// (u32, little-e)  INT   (i32, little-e)  VARCHAR  (u32, little-e)
+/// 
+///
+/// 
+/// /// So A `Row` is a `Vec<SqlValue>`. We use a tag-based system for `SqlValue` enums
+/// /// and length-prefixing for variable-sized data like vectors and strings.
+/// ///
+/// /// /// Byte layout for `Row { values: vec![BIGINT(2), VARCHAR("Bob"), INT(40)] }`:
+/// ///
+/// /// /// +---------------------------------------------------------------------------------------------------------------+
+/// /// /// | [ 03 00 00 00 ] [ 0A ] [ 02 00 00 00 00 00 00 00 ] [ 09 ] [ 03 00 00 00 ]  [ 42 6F 62 ] [ 02 ] [ 28 00 00 00 ]|
+/// /// /// +-----------------+------+---------------------------+------+----------------+------------+------+--------------+
+/// /// /// | Vec Length (u32)| Tag  | BIGINT Value (i64)        | Tag  | VARCHAR        | "B""o""b"  | Tag  | INT Value    |
+/// /// /// | = 3             | (i64)| = 2                       | (Vec)| Len (u32) = 3  |            | (i32)| (i32) = 40   |
+/// /// /// +---------------------------------------------------------------------------------------------------------------+
+/// /// /// | Bintuco-encoded Vec<SqlValue>                                                                                 |
+/// /// /// +---------------------------------------------------------------------------------------------------------------+
+/// ///
+
+
+
 impl BintucoEncode for SqlValue {
     fn encode(&self, out: &mut Vec<u8>) {
         match self {

@@ -7,6 +7,62 @@ use rustyline::DefaultEditor;
 use std::fmt;
 
 
+
+
+/// /// ### Client State Machine (Visualized)
+/// ///
+/// /// /// The client follows a simple, synchronous loop after connecting.
+/// ///
+/// /// /// +----------------+     +----------------+     +----------------+
+/// /// /// | Disconnected   | --> | Connecting...  | --> | Idle (Prompt)  |
+/// /// /// +----------------+     +----------------+     +-------+--------+
+/// /// ///                                                        | (User types command)
+/// /// ///                                                        V
+/// /// /// +------------------+   +----------------+     +-------+--------+
+/// /// /// | AwaitingResponse |<--| Sending Query  |<----| Processing     |
+/// /// /// | (Blocks on read) |   +----------------+     | Input          |
+/// /// /// +-------+----------+                          +----------------+
+/// /// ///         | (Receives response)
+/// /// ///         V
+/// /// /// +----------------+
+/// /// /// | Displaying     |
+/// /// /// | Results/Error  |
+/// /// /// +-------+--------+
+/// /// ///         |
+/// /// ///         `------------> Back to Idle (Prompt)
+/// /// /// 
+/// /// /// 
+/// /// ### Client-Side Deserialization (Visualized)
+///
+/// /// /// The `print_result_set` function receives the raw payload from a `RESP_RESULT_SET`
+/// /// /// message and decodes it. The core logic is in `client_decode_row`, which is the
+/// /// /// inverse of the server's `bintuco` serialization.
+/// ///
+/// /// /// **Byte-level parsing of a `Row` payload `[VARCHAR("Alice"), DOUBLE(30.0)]`:**
+/// ///
+/// /// /// +-------------------------------------------------------------------------------------------------+
+/// /// /// | [ 02 00 00 00 ]  [ 09 ] [ 05 00 00 00 ]  [ 41 6C 69 63 65 ]  [ 07 ]  [ 00 00 00 00 00 00 3E 40 ]|
+/// /// /// +---------------+------+-----------------+-------------------+--------+---------------------------+
+/// /// /// | Datum Count     | Tag  | VARCHAR         | "A""l""i""c""e"   | Tag  | DOUBLE Value (f64)        |
+/// /// /// | (u32, little-e) | (u8) | Len (u32) = 5   |                   | (u8) | = 30.0                    |
+/// /// /// +-------------------------------------------------------------------------------------------------+
+/// /// /// | `client_decode_row` reads this payload.                                                         |
+/// /// /// | 1. Reads datum count = 2.                                                                       |
+/// /// /// | 2. Loops twice, calling `client_decode_value`.                                                  |
+/// /// /// | 3. `client_decode_value` sees tag 9, reads a 4-byte length, then reads 5 bytes for the string.  |
+/// /// /// | 4. `client_decode_value` sees tag 7, reads 8 bytes and converts to f64.                         |
+/// /// /// +-------------------------------------------------------------------------------------------------+
+/// ///
+
+
+
+
+
+
+
+
+
+
 const SQL_COMMANDS: &[&str] = &[
     "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE",
     "EXPLAIN",

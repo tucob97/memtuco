@@ -15,6 +15,27 @@ use crate::btree::*;
 use crate::dberror::DbError;
 
 
+///+----------------------------------------------------------------------------------------+
+///|                                     TablePage (1024 bytes)                             |
+///+----------------------------------------------------------------------------------------+
+///|                                   Serialized Data                                      |
+///|                                    (Variable Size)                                     |
+///|                                                                                        |
+///|   +-----------------------------------+                                                |
+///|   | index: usize                      | // Page ID                                     |
+///|   | num_cell: u16                     | // Count of cells (rows) on this page          |
+///|   | row_idnum: usize                  | // A counter, likely related to row IDs        |
+///|   | pointer_cell: HashMap<usize, u16> | // Maps a global RowId to an index in `veccell`|
+///|   | veccell: Vec<Cell>                | // Vector containing the actual cell data      |
+///|   +-----------------------------------+                                                |
+///|                                                                                        |
+///+----------------------------------------------------------------------------------------+
+///|                                   Free Space (Padding)                                 |
+///|                                (Remaining bytes up to 1024)                            |
+///+----------------------------------------------------------------------------------------+
+
+
+
 // ══════════════════════════════════════ SQL TYPE ══════════════════════════════════════
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -92,6 +113,11 @@ impl FromStr for SqlColumnType {
 }
 
 // ══════════════════════════════════════ ROW STRUCT ══════════════════════════════════════
+
+
+
+
+
 
 ///Row implementation
 #[derive(Debug, Clone, PartialEq)]

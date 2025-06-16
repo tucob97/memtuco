@@ -54,6 +54,42 @@ const RESP_OK: u8 = 0x80;
 const RESP_ERR: u8 = 0x81;
 const RESP_RESULT_SET: u8 = 0x82;
 
+
+/// /// ### Client/Server Network Protocol (Visualized)
+/// 
+/// ///
+/// /// /// The protocol, defined in `transaction.rs`, uses length-prefixed framing to
+/// /// /// send messages over TCP. A result set is sent as a single, large message.
+/// ///
+/// /// /// **1. Overall Message Frame:**
+/// /// /// +----------------------------------------------------------------------+
+/// /// /// | [ 0x82 ]  [ 00 00 00 2D ]    [ ... 45 bytes of payload ... ]         |
+/// /// /// +----------+-----------------+-----------------------------------------+
+/// /// /// | OpCode   | Payload Length  | Payload Data                            |
+/// /// /// | (1 byte) | (u32, big-e)    | (schema info + rows)                    |
+/// /// /// +----------------------------------------------------------------------+
+/// ///
+/// /// /// **2. Payload for one row `("Alice", 30.0)` from an example query:**
+/// /// ///    (Assuming this is the first and only row in this message)
+/// /// /// +--------------------------------------------------------------------------------------------------+
+/// /// /// | [ 02 00 00 00 ] [ 04 00 00 00 6E 61 6D 65 0C ] [ 0B 00 00 00 64 6F ... 65 0A ] [ 01 00 00 00 ]     |
+/// /// /// +---------------+----------------------------------+------------------------------+-----------------+
+/// /// /// | Column Count  | Col 1: "name" (VARCHAR)          | Col 2: "doubled_age" (DOUBLE)| Row Count       |
+/// /// /// | = 2 (u32)     | (len, bytes, type_tag)           | (len, bytes, type_tag)       | = 1 (u32)       |
+/// /// /// +--------------------------------------------------------------------------------------------------+
+/// /// /// |                                                                                                  |
+/// /// /// | **Row 1 Data (bintuco-encoded):** |
+/// /// /// | [ 1A 00 00 00 ] [ 02 00 00 00 09 05 00 00 00 41 6C 69 63 65 07 00 00 00 00 00 00 3E 40 ]           |
+/// /// /// +---------------+----------------------------------------------------------------------------------+
+/// /// /// | Row Byte Len  | bintuco encoded `Row { values: [VARCHAR("Alice"), DOUBLE(30.0)] }`                |
+/// /// /// | = 26 (u32)    |                                                                                  |
+/// /// /// +--------------------------------------------------------------------------------------------------+
+/// ///
+/// ///
+/// ///
+
+
+
 enum CommandResponse {
     Ok(String),
     ResultSet(TableSchema, Vec<Row>),
