@@ -173,9 +173,9 @@ impl FileHandle {
 /// So at this point the question is, why not save directly the page_num?
 /// 
 /// That's the perfect question to ask next. It seems more direct and space-efficient
-/// to just store the page index. But sincerely i do not know if at certain point
-/// i dedice to change some page size for example, and so this can lead to 
-/// error offset calculation. And because it works perfectly i'm not touch it anymore
+/// to just store the page index. But sincerely i didn't know if at some point i
+/// might decide to change the page size for other struct, which could lead to 
+/// error offset calculation. And because it works perfectly, i'm not touch it anymore
 /// 
 /// ### Recovery Speed and Simplicity
 ///
