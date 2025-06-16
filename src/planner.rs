@@ -4,6 +4,163 @@ use crate::dberror::DbError;
 use crate::tokenizer::*;
 use std::fmt;
 
+/// # The Query Planner (`planner.rs`)
+///
+/// /// This module is the core of the database's query processing logic. Its primary
+/// /// responsibility is to take a structured `Statement` (the Abstract Syntax Tree or
+/// /// AST from the parser) and convert it into a `PlanNode` tree. This tree represents
+/// /// a logical plan of operations that the database executor can understand and run.
+/// /// Each node in the tree is a specific relational algebra operation (like Scan,
+/// /// Filter, Project, Join), and the tree structure defines the flow of data from
+/// /// the raw tables up to the final result set.
+///
+/// ### Core Data Structures
+///
+/// /// The planner's output is built using two main recursive enums:
+///
+/// /// 1.  `PlanNode`: Represents a major data processing step. Data flows from the
+/// ///     bottom of the `PlanNode` tree to the top.
+/// /// 2.  `Expression`: Represents a computation within a node, such as
+/// ///     evaluating a `WHERE` clause condition or calculating a value in the
+/// ///     `SELECT` list.
+// ```
+///
+/// ### Planning a Complex Query: An Example
+///
+/// /// **Example SQL Query:**
+///
+/// /// ```sql
+/// /// SELECT
+/// ///   departments.name,
+/// ///   COUNT(employees.id),
+/// ///   AVG(employees.salary)
+/// /// FROM
+/// ///   employees
+/// /// JOIN
+/// ///   departments ON employees.dept_id = departments.id
+/// /// WHERE
+/// ///   employees.status = 'active'
+/// /// GROUP BY
+/// ///   departments.name
+/// /// HAVING
+/// ///   COUNT(employees.id) > 10
+/// /// ORDER BY
+/// ///   employee_count DESC
+/// /// LIMIT 5;
+/// /// ```
+///
+/// ### The Planning Process: From AST to PlanNode Tree
+///
+/// /// The `plan_statement` function constructs the `PlanNode` tree from the outside-in,
+/// /// starting from the data sources (`FROM`/`JOIN`) and wrapping them with successive
+/// /// operations. The final plan is a nested tree where the outermost node is the last
+/// /// operation performed.
+///
+/// /// Below is a detailed graph showing how the `plan` variable is built up step-by-step.
+/// /// Read the graph from the bottom (Step 1) to the top (Step 9).
+///
+/// ///
+/// /// /// +-----------------------------------------------------------------------------+
+/// /// /// | Step 9: LIMIT                                                               |
+/// /// /// | The final operation. Wraps the whole plan in a `Limit` node.                |
+/// /// /// | `PlanNode::Limit { input: [previous plan], count: 5 }`                      |
+/// /// /// +------------------------------------^----------------------------------------+
+/// /// ///                                      |
+/// /// /// +------------------------------------+----------------------------------------+
+/// /// /// | Step 8: PROJECTION (The SELECT list)                                        |
+/// /// /// | Selects and computes the final columns AFTER sorting. This defines the      |
+/// /// /// | final output shape.                                                         |
+/// /// /// | `PlanNode::Projection {                                                     |
+/// /// /// |   input: [previous plan],                                                   |
+/// /// /// |   expressions: [                                                            |
+/// /// /// |     Expression::Column(departments.name),                                   |
+/// /// /// |     Expression::Aggregate(COUNT(employees.id)),                             |
+/// /// /// |     Expression::Aggregate(AVG(employees.salary))                            |
+/// /// /// |   ]                                                                         |
+/// /// /// | }`                                                                          |
+/// /// /// +------------------------------------^----------------------------------------+
+/// /// ///                                      |
+/// /// /// +------------------------------------+----------------------------------------+
+/// /// /// | Step 7: ORDER BY                                                            |
+/// /// /// | Wraps the HAVING output in an `OrderBy` node. This happens BEFORE projection|
+/// /// /// | to allow sorting by columns that may not be in the final SELECT list.       |
+/// /// /// | `PlanNode::OrderBy { input: [previous plan], orderings: [(col, DESC)] }`    |
+/// /// /// +------------------------------------^----------------------------------------+
+/// /// ///                                      |
+/// /// /// +------------------------------------+----------------------------------------+
+/// /// /// | Step 6: HAVING                                                              |
+/// /// /// | Filters the *groups* created by `GROUP BY`. This happens after aggregation. |
+/// /// /// | `PlanNode::HavingFilter {                                                   |
+/// /// /// |   input: [previous plan],                                                   |
+/// /// /// |   predicate: Expression::Comparison { COUNT(employees.id) > 10 }            |
+/// /// /// | }`                                                                          |
+/// /// /// +------------------------------------^----------------------------------------+
+/// /// ///                                      |
+/// /// /// +------------------------------------+----------------------------------------+
+/// /// /// | Step 5: GROUP BY                                                            |
+/// /// /// | Aggregates rows into groups. The `collect_aggs` helper finds all `COUNT()`  |
+/// /// /// | and `AVG()` functions from the SELECT and HAVING clauses.                   |
+/// /// /// | `PlanNode::GroupBy {                                                        |
+/// /// /// |   input: [previous plan],                                                   |
+/// /// /// |   columns: [departments.name],                                              |
+/// /// /// |   aggregates: [COUNT(employees.id), AVG(employees.salary)]                  |
+/// /// /// | }`                                                                          |
+/// /// /// +------------------------------------^----------------------------------------+
+/// /// ///                                      |
+/// /// /// +------------------------------------+----------------------------------------+
+/// /// /// | Step 4: WHERE                                                               |
+/// /// /// | Filters individual rows *before* they are grouped.                          |
+/// /// /// | `PlanNode::Filter {                                                         |
+/// /// /// |   input: [previous plan],                                                   |
+/// /// /// |   predicate: Expression::Comparison { employees.status = 'active' }         |
+/// /// /// | }`                                                                          |
+/// /// /// +------------------------------------^----------------------------------------+
+/// /// ///                                      |
+/// /// /// +------------------------------------+----------------------------------------+
+/// /// /// | Step 3: JOIN                                                                |
+/// /// /// | Combines the two table scans based on the join condition.                   |
+/// /// /// | `PlanNode::Join {                                                           |
+/// /// /// |   left: [employees scan],                                                   |
+/// /// /// |   right: [departments scan],                                                |
+/// /// /// |   on_left: "employees.dept_id",                                             |
+/// /// /// |   on_right: "departments.id"                                                |
+/// /// /// | }`                                                                          |
+/// /// /// +-------------------^----------------+----------------^-----------------------+
+/// /// ///                     |                                 |
+/// /// /// +-------------------+--------------+  +-------------+-------------------------+
+/// /// /// | Step 2: Right Table Scan         |  | Step 1: Left Table Scan               |
+/// /// /// | The `departments` table.         |  | The first table in the `FROM` clause. |
+/// /// /// | `PlanNode::TableScan {           |  | `PlanNode::TableScan {                |
+/// /// /// |   table: "departments"           |  |   table: "employees"                  |
+/// /// /// | }`                               |  | }`                                    |
+/// /// /// +----------------------------------+  +---------------------------------------+
+///
+/// ### Explanation of Key Planning Steps
+///
+/// /// 1.  **Index Scan Optimization**: The planner first checks the `WHERE` clause for
+/// ///     a simple `column = literal` predicate. If a matching index exists on that
+/// ///     column, it generates an `IndexScan` instead of a `TableScan` for much
+/// ///     faster data retrieval. In our example, `employees.status = 'active'` does not use
+/// ///     an index, so we start with a `TableScan`.
+///
+/// /// 2.  **`WHERE` Clause Planning**: The `condition_expr_to_expression` function is
+/// ///     called to recursively convert the potentially complex `WHERE` clause from the
+/// ///     parser's AST into a single `Expression` enum. This `Expression` is then
+/// ///     placed inside a `Filter` node.
+///
+/// /// 3.  **`GROUP BY` and Aggregate Planning**: This is a two-stage process.
+/// ///     -   The planner first walks through all expressions in the `SELECT` list and
+/// ///         the `HAVING` clause to find every aggregate function used. The helper
+/// ///         function `collect_aggs` performs this recursive search.
+/// ///     -   It then creates a `GroupBy` node containing the grouping columns (e.g.,
+/// ///         `departments.name`) and the complete list of unique aggregates it found. This ensures
+/// ///         that even if `COUNT(employees.id)` is used in both `SELECT` and `HAVING`, it is
+/// ///         only calculated once per group.
+///
+/// /// 4.  **Order of Operations**: The planner follows the logical order of SQL
+/// ///     processing, which is crucial for correctness. The sequence is `FROM/JOIN` -> `WHERE`
+/// ///     -> `GROUP BY` -> `HAVING` -> `ORDER BY` -> `SELECT` -> `LIMIT`. 
+/// ///      The nested structure of the `PlanNode` tree naturally enforces this execution order.
 
 // ══════════════════════════════════════ NODE FOR QUERY PLAN ══════════════════════════════════════
 

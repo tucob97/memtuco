@@ -4,7 +4,6 @@
 //! was very painful. I hope that now error propagation make sense
 
 
-
 use std::io;
 use std::fmt;
 use std::error::{Error};

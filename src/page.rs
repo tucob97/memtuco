@@ -24,7 +24,7 @@ use crate::dberror::DbError;
 ///|   +-----------------------------------+                                                |
 ///|   | index: usize                      | // Page ID                                     |
 ///|   | num_cell: u16                     | // Count of cells (rows) on this page          |
-///|   | row_idnum: usize                  | // A counter, likely related to row IDs        |
+///|   | row_idnum: usize                  | // A counter of rows presents                  |
 ///|   | pointer_cell: HashMap<usize, u16> | // Maps a global RowId to an index in `veccell`|
 ///|   | veccell: Vec<Cell>                | // Vector containing the actual cell data      |
 ///|   +-----------------------------------+                                                |

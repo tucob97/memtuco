@@ -271,7 +271,7 @@ impl<'a> Lexer<'a> {
 
 // ══════════════════════════════════════ AST ══════════════════════════════════════
 
-/// /// /// The `Parser` in `tokenizer.rs` consumes a stream of `Token`s and uses a
+/// /// /// The `Parser` consumes a stream of `Token`s and uses a
 /// /// /// Pratt Parsing algorithm (`parse_expr_prec`) to construct the AST. This
 /// /// /// method correctly handles operator precedence, ensuring that `*` and `/`
 /// /// /// are nested deeper in the tree than `+` and `-`.

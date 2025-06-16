@@ -85,9 +85,100 @@ const RESP_RESULT_SET: u8 = 0x82;
 /// /// /// | = 26 (u32)    |                                                                                  |
 /// /// /// +--------------------------------------------------------------------------------------------------+
 /// ///
-/// ///
-/// ///
 
+
+/// ## Concurrency and Locking 
+///
+/// /// The `transaction.rs` module implements also the database's multi-threaded TCP server
+/// /// and defines the concurrency control model. The goal is to allow multiple clients
+/// /// to connect and execute queries simultaneously while preventing data corruption.
+///
+/// /// This is achieved using a single, database-wide `Arc<RwLock<DatabaseEngine>>`.
+/// /// This lock ensures that operations are properly isolated.
+///
+/// /// ### The `RwLock` Strategy
+///
+/// /// The `RwLock` (Read-Write Lock) is fundamental to the concurrency strategy:
+///
+/// /// 1.  **Read Access (Shared Lock):** Multiple threads can acquire a read lock
+/// ///     simultaneously. This is used for `SELECT` queries that do not modify data.
+/// ///     As long as no thread holds a write lock, any number of clients can read
+/// ///     from the database in parallel. A read lock is acquired with `db.read()`.
+///
+/// /// 2.  **Write Access (Exclusive Lock):** Only one thread can acquire a write lock
+/// ///     at any given time. This lock is *exclusive*, meaning no other read or write
+/// ///     locks can be acquired while it is held. This is essential for all data
+/// ///     modification operations (`INSERT`, `UPDATE`, `DELETE`, `CREATE`) to ensure
+/// ///     atomicity and prevent race conditions. A write lock is acquired with
+/// ///     `db.write()`.
+///
+/// ///
+/// /// /// **Visualizing the Lock States:**
+/// ///
+/// /// /// +--------------------------------------------------------------------------+
+/// /// /// |               `Arc<RwLock<DatabaseEngine>>` State                         |
+/// /// /// +--------------------------------------------------------------------------+
+/// /// ///
+/// /// ///   Case 1: Multiple Readers (Shared Access)
+/// /// ///
+/// /// ///   +----------+      +----------+      +----------+
+/// /// ///   | Client A |      | Client B |      | Client C |
+/// /// ///   | (SELECT) |      | (SELECT) |      | (SELECT) |
+/// /// ///   +----+-----+      +----+-----+      +----+-----+
+/// /// ///        |                 |                 |
+/// /// ///        +---+        +----+        +--------+
+/// /// ///            |        |             |
+/// /// ///    [ db.read() ] [ db.read() ] [ db.read() ]
+/// /// ///            |        |             |
+/// /// ///            v        v             v
+/// /// ///         +--------------------------+
+/// /// ///         |      DatabaseEngine      |  (OK: Multiple readers allowed)
+/// /// ///         +--------------------------+
+/// /// ///
+/// /// ///   Case 2: One Writer (Exclusive Access)
+/// /// ///
+/// /// ///   +----------+      +----------+      +----------+
+/// /// ///   | Client D |      | Client E |      | Client F |
+/// /// ///   | (UPDATE) |      | (SELECT) |      | (INSERT) |
+/// /// ///   +----+-----+      +----+-----+      +----+-----+
+/// /// ///        |                 | (blocked)       | (blocked)
+/// /// ///      [ db.write() ]
+/// /// ///        |
+/// /// ///        v
+/// /// ///  +--------------------------+
+/// /// ///  |      DatabaseEngine      |  (OK: One writer, all others wait)
+/// /// ///  +--------------------------+
+/// ///
+///
+/// ### Transaction Management
+///
+/// /// The server supports both explicit (`BEGIN...COMMIT`) and auto-commit transactions.
+///
+/// /// -   **Auto-Commit Mode:** If a client sends a write command (`INSERT`, `UPDATE`, etc.)
+/// ///     without being inside a `BEGIN...COMMIT` block, the server handles it atomically:
+/// ///     1.  Acquire an exclusive write lock (`db.write()`).
+/// ///     2.  Start an internal transaction.
+/// ///     3.  Execute the single write command.
+/// ///     4.  If it succeeds, commit the transaction.
+/// ///     5.  If it fails, roll back the transaction.
+/// ///     6.  Release the write lock.
+/// ///
+/// /// -   **Explicit Transaction Mode:** When a client sends a `BEGIN` command:
+/// ///     1.  The server thread for that client acquires a write lock (`db.write()`).
+/// ///     2.  It holds onto this lock (`txn_guard`) for the entire duration of the
+/// ///         transaction. This means no other client can read or write to the
+/// ///         database until this transaction ends.
+/// ///     3.  Subsequent commands from this client are executed within the transaction.
+/// ///     4.  When a `COMMIT` or `ROLLBACK` is received, the actions are performed, and
+/// ///         the `txn_guard` is dropped, releasing the lock for other clients.
+///
+/// ### Concurrency Summary
+///
+/// /// This model provides a simple but effective approach to safety:
+/// /// -   **High Concurrency for Reads:** Many clients can run `SELECT` queries in parallel.
+/// /// -   **Serial Execution for Writes:** All write operations (and explicit transactions)
+/// ///     are executed one at a time, preventing conflicts at the cost of parallelism
+/// ///     for write-heavy workloads. This is a classic "single-writer" concurrency model.
 
 
 enum CommandResponse {
