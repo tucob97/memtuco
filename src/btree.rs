@@ -18,9 +18,6 @@ use crate::dbengine::*;
 use crate::dberror::DbError;
 
 
-
-
-
 ///+----------------------------------------------------------------------------------------+
 ///|                               BTreeNode  - 1024 bytes                                  |
 ///+----------------------------------------------------------------------------------------+
@@ -43,6 +40,88 @@ use crate::dberror::DbError;
 ///+----------------------------------------------------------------------------------------+
 ///|                                   Free Space (Padding)                                 |
 ///+----------------------------------------------------------------------------------------+
+
+
+
+/// /// Parent Node P
+/// /// +-----------------------------+
+/// /// | ... | Ptr_L | Key_X | ... |
+/// /// +-----------------------------+
+/// ///         |
+/// ///         V
+/// /// Leaf Node L (Full)
+/// /// +-----------------------------------+
+/// /// | K_1 | V_1 | K_2 | V_2 | K_3 | V_3 |
+/// /// +-----------------------------------+
+/// ///
+/// ///            After
+/// ///
+/// /// Parent Node P (Updated)
+/// /// +-------------------------------------------------+
+/// /// | ... | Ptr_L | Promoted_Key | Ptr_L' | Key_X | ... |
+/// /// +-------------------------------------------------+
+/// ///         |                      |
+/// ///         |                      V
+/// ///         |                New Leaf Node L'
+/// ///         |                +-----------------+
+/// ///         |                | K_3 | V_3 | ... |
+/// ///         |                +-----------------+
+/// ///         V
+/// /// Original Leaf Node L (Now half-full)
+/// /// +-----------------------+
+/// /// | K_1 | V_1 | K_2 | V_2 |
+/// /// +-----------------------+
+/// 
+ 
+
+/// /// /// **Visualizing a Root Split (See first comment section):**
+/// /// /// Let's trace the state of the B-Tree file when inserting the key `25` into
+/// /// /// a full root node.
+/// ///
+/// /// ///
+/// /// /// **1. State Before Split**
+/// /// /// The B-Tree has one node at page 0, which is the root and is full.
+/// /// /// The `Btree` struct points to it.
+/// ///
+/// /// ///   B-Tree File                BTree Struct
+/// /// /// +---------------------+      +-----------------------------+
+/// /// /// | Page 0 (Root, Leaf) | <--- | root_index: 0               |
+/// /// /// | Keys: [10, 20, 30]  |      | node_counter: 1             |
+/// /// /// +---------------------+      +-----------------------------+
+/// /// /// | Page 1 (Free)       |
+/// /// /// +---------------------+
+/// /// /// | Page 2 (Free)       |
+/// /// /// +---------------------+
+/// ///
+/// ///
+/// /// **2. State After Split**
+/// /// Inserting `25` forces the node at page 0 to split.
+/// ///   a. The keys are divided. The old root (page 0) keeps `[10, 20]`.
+/// ///   b. A new sibling leaf is created at the next free page (page 1) and gets `[30]`.
+/// ///   c. The middle key, `25`, is promoted upwards.
+/// ///   d. Since there is no parent, a **brand new root** is created at the next
+/// ///      free page (page 2). This new root contains the promoted key and pointers
+/// ///      to the two children (page 0 and page 1).
+/// ///   e. The `Btree` struct is updated to point to the new root at page 2.
+/// ///
+/// /// ///   B-Tree File                          BTree Struct
+/// /// /// +---------------------------+        +-----------------------------+
+/// /// /// | Page 0 (Now a Leaf)       |        | root_index: 2               |
+/// /// /// | Keys: [10, 20]            |        | node_counter: 3             |
+/// /// /// | Parent: 2                 |        +-----------------------------+
+/// /// /// +---------------------------+                        ^
+/// /// /// | Page 1 (New Sibling Leaf) |                        |
+/// /// /// | Keys: [30]                |                        |
+/// /// /// | Parent: 2                 |                        |
+/// /// /// +---------------------------+                        |
+/// /// /// | Page 2 (NEW ROOT)         | -----------------------+
+/// /// /// | Keys: [25]                |
+/// /// /// | Children: [0, 1]          |
+/// /// /// +---------------------------+
+///
+
+
+
 
 
 // ══════════════════════════════════════ A TRIPLET DEFINITION ══════════════════════════════════════

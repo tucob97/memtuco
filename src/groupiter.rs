@@ -12,6 +12,43 @@ use crate::dberror::DbError;
 use crate::tokenizer::BinaryOperator;
 use crate::dbengine::compare_sqlvalue; // This is a bool-returning function
 
+
+/// ### Hash-based `group_by`
+///
+/// /// The `group_by` function calculates aggregates by consuming the entire input iterator
+/// /// and building a hash map in memory.
+///
+/// /// -   **Key:** The grouping key is formed by concatenating the string representations
+/// ///     of the values in the grouping columns for a given row.
+/// /// -   **Value:** The value is a list of "accumulators," one for each aggregate
+/// ///     function (`SUM`, `COUNT`, `AVG`, etc.).
+///
+/// /// For each row processed, we calculate its key. If the key is new, we create a new
+/// /// set of accumulators. Then, we update the accumulators for that key with the
+/// /// current row's data. After processing all input, we iterate through the hash map
+/// /// and "finish" each accumulator to produce the final aggregate value for each group.
+///
+/// ///
+/// /// /// **Visualizing Hash Aggregation:**
+/// ///
+/// /// ///                                        Input Rows
+/// /// ///                                +---------------------------+
+/// /// ///                                | { dept: "Eng", sal: 100 } |
+/// /// ///                                | { dept: "HR",  sal: 50  } |
+/// /// ///                                | { dept: "Eng", sal: 120 } |
+/// /// ///                                +-------------+-------------+
+/// /// ///                                              |
+/// /// ///           +----------------------------------+------------------------------------+
+/// /// ///           |                                                                       |
+/// /// /// +---------v---------+                                                     +-------v---------+
+/// /// /// | Key: ["Eng"]      |                                                     | Key: ["HR"]       |
+/// /// /// +-------------------+                                                     +-----------------+
+/// /// /// | Value:            | (HashMap<Vec<String>, Vec<Box<dyn AggAccumulator>>>)| Value:            |
+/// /// /// | [ SumAcc: 220,    |                                                     | [ SumAcc: 50,     |
+/// /// /// |   CountAcc: 2 ]   |                                                     |   CountAcc: 1 ]   |
+/// /// /// +-------------------+                                                     +-------------------+
+
+
 /// Hash-based GROUP BY: consumes input iterator, emits one Row per group
 pub fn group_by<'a>(
     input: Box<dyn RowIterator + 'a>,      // change input type to RowIterator
@@ -93,7 +130,10 @@ pub fn having<'a>(
     })
 }
 
-
+/// ### Sorted `distinct`
+///
+/// /// The `distinct_sorted` operator leverages the external `RowSorter` to provide a
+/// /// memory-efficient `DISTINCT` operation.
 
 /// DISTINCT: eliminate duplicate rows
 pub fn distinct_sorted<'a>(
