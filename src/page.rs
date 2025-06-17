@@ -14,7 +14,71 @@ use crate::constant::{OVERFLOW_SENTINEL, PAGE_CAPACITY, PAGE_SIZE, PAYLOAD_SIZE,
 use crate::btree::*;
 use crate::dberror::DbError;
 
-
+/// ## Page Layout, Row Encoding, and OverflowPage
+///
+/// /// This module defines how data is physically laid out on disk. It handles the
+/// /// structure of pages, how rows are serialized, and what happens when a row is
+/// /// too large to fit on a single page.
+///
+/// ### Row and Cell Structure
+///
+/// /// -   `Row`: A `Row` is a simple `Vec<SqlValue>`, representing a single record.
+/// /// -   `Cell`: A `Cell` is the storage unit for a row within a data page. It contains
+/// ///     the `row_payload` (the serialized bytes of a `Row`) and an `overflow_page`
+/// ///     pointer. If the row fits on the page, this pointer is 0.
+///
+/// ### Row Encoding with `bintuco`
+///
+/// /// Rows are serialized to a byte vector using the `bintuco` crate. This creates a
+/// /// compact, binary representation of the `Row` struct. For example, a `Row`
+/// /// containing `[SqlValue::INT(10), SqlValue::VARCHAR("hello")]` is converted into a
+/// /// byte stream that encodes the enum variants and their associated data. This is
+/// /// more space-efficient than storing data as text.
+///
+/// ### Overflow Page Logic
+///
+/// /// A standard page has a limited capacity. If a row's serialized byte stream is
+/// /// larger than the `OVERFLOW_SENTINEL`, it cannot be stored in a single `Cell`.
+/// /// In this case, the row is split across a primary `Cell` and a linked list of
+/// /// `OverflowPage`s.
+///
+/// /// 1.  The first chunk of the row's data (up to the `OVERFLOW_SENTINEL` size) is
+/// ///     stored in the `row_payload` of the main `Cell`.
+/// /// 2.  The `overflow_page` field of this `Cell` is set to the page index of the
+/// ///     first `OverflowPage`.
+/// /// 3.  The rest of the row's data is chunked and stored in a series of `OverflowPage`s.
+/// /// 4.  Each `OverflowPage` contains a chunk of the payload and a pointer to the
+/// ///     next `OverflowPage` in the chain. The last page in the chain has its
+/// ///     `overflow_page` pointer set to 0.
+///
+/// ///
+/// /// /// Visualizing Overflow Storage:
+/// ///
+/// /// /// Storing a very large row that requires two overflow pages.
+/// ///
+/// /// /// TablePage (e.g., at page index 5)
+/// /// /// +--------------------------------------------------------------------------+
+/// /// /// | Header, other cells...                                                   |
+/// /// /// +--------------------------------------------------------------------------+
+/// /// /// | Cell for our large row:                                                  |
+/// /// /// |   - overflow_page: 12  --------------------------------------------------->-+   
+/// /// /// |   - row_payload: [ first chunk of bytes... ]                             |  |
+/// /// /// +--------------------------------------------------------------------------+  |
+/// /// ///                                                                               |
+/// /// /// OverflowPage (at page index 12)                                               |
+/// /// /// +--------------------------------------------------------------------------+  |
+/// /// /// | - page_num: 12        <----------------------------------------------------<+
+/// /// /// | - overflow_page: 13  ----------------------------------------------------->-+  
+/// /// /// | - row_payload: [ second chunk of bytes... ]                              |  |
+/// /// /// +--------------------------------------------------------------------------+  |
+/// /// ///                                                                               |
+/// /// /// OverflowPage (at page index 13)                                               |
+/// /// /// +--------------------------------------------------------------------------+  |
+/// /// /// | - page_num: 13        <----------------------------------------------------<+
+/// /// /// | - overflow_page: 0 (End of chain)                                        | 
+/// /// /// | - row_payload: [ final chunk of bytes... ]                               |
+/// /// /// +--------------------------------------------------------------------------+
+///
 ///+----------------------------------------------------------------------------------------+
 ///|                                     TablePage (1024 bytes)                             |
 ///+----------------------------------------------------------------------------------------+
@@ -33,6 +97,137 @@ use crate::dberror::DbError;
 ///|                                   Free Space (Padding)                                 |
 ///|                                (Remaining bytes up to 1024)                            |
 ///+----------------------------------------------------------------------------------------+
+///
+/// /// /// +--------------------------------------------------------------------------+
+/// /// /// |                     OverflowPage (1024 bytes)                            |
+/// /// /// +--------------------------------------------------------------------------+
+/// /// /// | Serialized Data of the `OverflowPage` struct:                            |
+/// /// /// |                                                                          |
+/// /// /// | `page_num`: 12 (The index of this page itself)                           |
+/// /// /// | `overflow_page`: 13 (Pointer to the *next* overflow page, or 0 if last)  |
+/// /// /// | `row_payload`: [ A chunk of the large row's serialized bytes... ]        |
+/// /// /// |                                                                          |
+/// /// /// +--------------------------------------------------------------------------+
+/// /// /// | Unused Space (Padding to 1024 bytes)                                     |
+/// /// /// +--------------------------------------------------------------------------+
+
+
+/// ### Free Space Management with a B-Tree
+///
+/// /// To efficiently find a page with enough space to insert a new row, each table
+/// /// maintains a dedicated "free space" B-Tree (`page_vec` in the `TableRoot` struct).
+/// /// This B-Tree does not store row data; instead, it indexes the amount of free space
+/// /// available on each data page.
+///
+/// /// -   Key: The B-Tree key is an `SqlValue::UINT` representing the number of
+/// ///     free bytes on a page.
+/// /// -   Value: The `page` field of the `Triplet` stores the index of the data page.
+///
+/// /// When inserting a new row that requires `N` bytes, the `first_free_page` function
+/// /// performs a `search_value_at_least(N)` on this B-Tree. This quickly finds a page
+/// /// with `N` or more bytes free. If no such page exists, a new page is allocated.
+/// /// After an insert, the page's old free-space entry is removed from the B-Tree and
+/// /// a new entry with the updated (smaller) free space is inserted.
+///
+/// ///
+/// /// /// Visualizing an Insert using the Free Space B-Tree:
+/// ///
+/// /// /// Goal: Insert a new row requiring 200 bytes of space.
+/// ///
+/// /// /// +--------------------------+
+/// /// /// | INSERT INTO ...          |
+/// /// /// | (Requires 200 bytes)     |
+/// /// /// +------------+-------------+
+/// /// ///              |
+/// /// /// +------------v----------------------+
+/// /// /// | TableRoot::insert_cell()          |
+/// /// /// | Calls `first_free_page(200, ...)` |
+/// /// /// +------------+----------------------+
+/// /// ///              |
+/// /// /// +------------v---------------------------------+
+/// /// /// | Btree::search_value_at_least(key: UINT(200)) |
+/// /// /// | on the `page_vec` B-Tree                     |
+/// /// /// +------------+---------------------------------+
+/// /// ///              | Search...
+/// /// /// +------------v---------------------------------------------------------------+
+/// /// /// |                  Free Space B-Tree (`page_vec`)                            |
+/// /// /// +----------------------------------------------------------------------------+
+/// /// /// | Root Node: [ Key: UINT(450), ChildPtr ]                                    |
+/// /// /// |                               |                                            |
+/// /// /// |      +------------------------+------------------+                         |
+/// /// /// |      V                                           V                         |
+/// /// /// | Leaf Node 1:                         Leaf Node 2:                          |
+/// /// /// | [ Triplet{key: UINT(100), page: 7} ]  [ Triplet{key: UINT(500), page: 4} ] |
+/// /// /// | [ Triplet{key: UINT(150), page: 2} ]  [ Triplet{key: UINT(800), page: 9} ] |
+/// /// /// |                                      (Search finds this one first)         |
+/// /// /// +----------------------------------------------------------------------------+
+/// /// ///              |
+/// /// ///              | Returns Triplet { key: UINT(500), page: 4 }
+/// /// ///              |
+/// /// /// +------------v--------------------------------------------+
+/// /// /// | `first_free_page` returns page index 4.                 |
+/// /// /// | The row is inserted into data page 4.                   |
+/// /// /// | The `page_vec` is updated: the entry for page 4 is      |
+/// /// /// | removed and a new one is inserted with key UINT(300).   |
+/// /// /// +---------------------------------------------------------+
+/// 
+/// No keys in internal node are removed, so we remove only keys in leaf node.
+
+/// /// ///
+/// ### The Special Case of the `OVERFLOW_KEY`
+///
+/// /// The free space B-Tree has a special mechanism for recycling overflow pages.
+/// /// An `OverflowPage` is a full-page structure, so it cannot be used for general
+/// /// row storage and is therefore not tracked in the B-Tree based on its available
+/// /// byte count.
+///
+/// /// Instead, when an overflow chain is deleted (e.g., during a `DELETE` or `UPDATE`
+/// /// operation), the pages in that chain are marked for reuse by inserting a special
+/// /// `Triplet` into the free space B-Tree:
+///
+/// /// `Triplet { key: SqlValue::UINT(OVERFLOW_KEY), page: <freed_page_index> }`
+///
+/// /// The `allocate_overflow_page` function leverages this. Before allocating a new
+/// /// page from the end of the file, it first searches the free space B-Tree for an
+/// /// entry with the exact `OVERFLOW_KEY`. If one is found, that page is recycled.
+/// /// This prevents the data file from growing indefinitely if large rows are
+/// /// frequently updated or deleted.
+///
+/// ///
+/// /// /// Visualizing Overflow Page Recycling:
+/// ///
+/// /// /// 1. An overflow page at index 13 is part of a deleted row.
+/// /// ///    The system inserts a special marker into the free-space B-Tree.
+/// ///
+/// /// /// +------------------------+
+/// /// /// | DELETE or UPDATE frees |
+/// /// /// | overflow page 13       |
+/// /// /// +-----------+------------+
+/// /// ///             |
+/// /// /// +-----------v----------------------------------------------------+
+/// /// /// | `page_vec`.insert( Triplet { key: OVERFLOW_KEY, page: 13 } )   |
+/// /// /// +----------------------------------------------------------------+
+/// ///
+/// /// /// 2. A new large row needs an overflow page.
+/// /// ///    The `allocate_overflow_page` function runs.
+/// ///
+/// /// /// +-----------------------------+
+/// /// /// | `allocate_overflow_page()`  |
+/// /// /// +-------------+---------------+
+/// /// ///               |
+/// /// /// +-------------v------------------------------------------------+
+/// /// /// | 1. Search `page_vec` for a Triplet where key == OVERFLOW_KEY |
+/// /// /// +-------------+------------------------------------------------+
+/// /// ///               |
+/// /// ///               | It finds `Triplet { key: OVERFLOW_KEY, page: 13 }`
+/// /// ///               |
+/// /// /// +-------------v----------------------------------------------+
+/// /// /// | 2. Reset that Triplet with 0 space count from the B-Tree.  |
+/// /// /// +-------------+----------------------------------------------+
+/// /// ///               |
+/// /// /// +-------------v---------------------------------------------+
+/// /// /// | 3. Return the page index: 13. This page will be reused.   |
+/// /// /// +-----------------------------------------------------------+
 
 
 
