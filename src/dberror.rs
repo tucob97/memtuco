@@ -1,7 +1,7 @@
 //! Custom Error for memtuco RDBMS
-//! This module came last and all other module is changed
-//! for unify and customize error. So refactoring all code
-//! was very painful. I hope that now error propagation make sense
+/// This module came last and all other module is changed
+/// for unify and customize error. So refactoring all code
+/// was very painful. I hope that now error propagation make sense
 
 
 use std::io;

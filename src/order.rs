@@ -1,9 +1,9 @@
 //! Order by Iterator implementation
-//! How we can sort without collecting all rows in memory?
-//! So the idea is to create "Runs" -> group of rows internally
-//! sorted, and stored to a file. So we create a in memory
-//! Heap, that store the rows in memory. If we pop
-//! a row from the heap, we fetch next row from the same Run
+/// How we can sort without collecting all rows in memory?
+/// So the idea is to create "Runs" -> group of rows internally
+/// sorted, and stored to a file. So we create a in memory
+/// Heap, that store the rows in memory. If we pop
+/// a row from the heap, we fetch next row from the same Run
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;

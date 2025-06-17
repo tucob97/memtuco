@@ -1,4 +1,4 @@
-// MEMTUCO RDBMS CONSTANTs
+//! MEMTUCO RDBMS CONSTANTs
 
 pub const PAGE_SIZE: usize = 1024;
 pub const PAGE_CAPACITY: usize = 950;

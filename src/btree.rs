@@ -1,10 +1,10 @@
 //! BTree Module
-//! First of all, i have to say that this implemention is not
-//! perfect at all for scanning BTree file in disk
-//! Because we need a real rebalance algorithm that put root node
-//! on the offset 0 ever, operation that this implemention not doing.
-//! This implementation simply move root node when is full and rewrite
-//! root node on the first offset free. ( [1024] bytes )
+/// First of all, i have to say that this implemention is not
+/// perfect at all for scanning BTree file in disk
+/// Because we need a real rebalance algorithm that put root node
+/// on the offset 0 ever, operation that this implemention not doing.
+/// This implementation simply move root node when is full and rewrite
+/// root node on the first offset free. ( [1024] bytes )
 
 use std::fmt::Error;
 use std::fs::{File};

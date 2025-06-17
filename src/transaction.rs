@@ -1,32 +1,31 @@
-//!
 //! Implements a TCP server handling a custom binary protocol.
-//!
-//! == Binary Protocol Definition ==
-//!
-//! All packets share the same structure:
-//! [OpCode (1 byte)] [Payload Length (4 bytes, u32-be)] [Payload (variable bytes)]
-//!
-//! === Client-to-Server OpCodes ===
-//! | OpCode | Command   | Payload Description                    |
-//! |--------|-----------|----------------------------------------|
-//! | 0x01   | Begin     | (empty)                                |
-//! | 0x02   | Commit    | (empty)                                |
-//! | 0x03   | Rollback  | (empty)                                |
-//! | 0x04   | Query     | encoded SQL query string               |
-//! | 0x05   | Info      | (empty)                                |
-//! | 0x06   | Debug     | (empty)                                |
-//! | 0x07   | Load      | (empty)                                |
-//! | 0x08   | Export    | (empty)                                |
-//! 
-//! === Server-to-Client OpCodes ===
-//! | OpCode | Response    | Payload Description                                    |
-//! |--------|-------------|--------------------------------------------------------|
-//! | 0x80   | Ok          | Optional success message.                              |
-//! | 0x81   | Error       | error description.                                     |
-//! | 0x82   | ResultSet   | Custom binary format (see `send_result_set` docs).     |
-//!
-//! TransactionEngine Module
-//!
+///
+/// == Binary Protocol Definition ==
+///
+/// All packets share the same structure:
+/// [OpCode (1 byte)] [Payload Length (4 bytes, u32-be)] [Payload (variable bytes)]
+///
+/// === Client-to-Server OpCodes ===
+/// | OpCode | Command   | Payload Description                    |
+/// |--------|-----------|----------------------------------------|
+/// | 0x01   | Begin     | (empty)                                |
+/// | 0x02   | Commit    | (empty)                                |
+/// | 0x03   | Rollback  | (empty)                                |
+/// | 0x04   | Query     | encoded SQL query string               |
+/// | 0x05   | Info      | (empty)                                |
+/// | 0x06   | Debug     | (empty)                                |
+/// | 0x07   | Load      | (empty)                                |
+/// | 0x08   | Export    | (empty)                                |
+/// 
+/// === Server-to-Client OpCodes ===
+/// | OpCode | Response    | Payload Description                                    |
+/// |--------|-------------|--------------------------------------------------------|
+/// | 0x80   | Ok          | Optional success message.                              |
+/// | 0x81   | Error       | error description.                                     |
+/// | 0x82   | ResultSet   | Custom binary format (see `send_result_set` docs).     |
+///
+/// TransactionEngine Module
+///
 
 
 use crate::dbengine::{DatabaseEngine, RowIterator};
