@@ -74,12 +74,12 @@ use crate::dberror::DbError;
 /// 
  
 
-/// /// /// **Visualizing a Root Split (See first comment section):**
+/// /// /// # Visualizing a Root Split (See first comment section):
 /// /// /// Let's trace the state of the B-Tree file when inserting the key `25` into
 /// /// /// a full root node.
 /// ///
 /// /// ///
-/// /// /// **1. State Before Split**
+/// /// /// 1. State Before Split
 /// /// /// The B-Tree has one node at page 0, which is the root and is full.
 /// /// /// The `Btree` struct points to it.
 /// ///
@@ -94,12 +94,12 @@ use crate::dberror::DbError;
 /// /// /// +---------------------+
 /// ///
 /// ///
-/// /// **2. State After Split**
+/// /// 2. State After Split
 /// /// Inserting `25` forces the node at page 0 to split.
 /// ///   a. The keys are divided. The old root (page 0) keeps `[10, 20]`.
 /// ///   b. A new sibling leaf is created at the next free page (page 1) and gets `[30]`.
 /// ///   c. The middle key, `25`, is promoted upwards.
-/// ///   d. Since there is no parent, a **brand new root** is created at the next
+/// ///   d. Since there is no parent, a brand new root is created at the next
 /// ///      free page (page 2). This new root contains the promoted key and pointers
 /// ///      to the two children (page 0 and page 1).
 /// ///   e. The `Btree` struct is updated to point to the new root at page 2.

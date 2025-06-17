@@ -3,26 +3,26 @@
 //!
 //! ## How Bintuco Works
 //!
-//! - **Primitives:**  
+//! - Primitives:  
 //!   All integer and floating-point types are encoded in little-endian byte order, using
 //!   their fixed-size representation in bytes. For example, `u32` always uses 4 bytes, `f64` uses 8 bytes, etc.
 //!
-//! - **Booleans:**  
+//! - Booleans:  
 //!   Encoded as a single byte: `0` for `false`, `1` for `true`.
 //!
-//! - **Strings:**  
+//! - Strings:  
 //!   Encoded as a 4-byte `u32` length prefix (little-endian), followed by the UTF-8 bytes of the string.
 //!
-//! - **Vectors:**  
+//! - Vectors:  
 //!   Encoded as a 4-byte `u32` length prefix, then each element is encoded in sequence.
 //!
-//! - **Option\<T\>:**  
+//! - Option\<T\>:  
 //!   Encoded as a single byte tag: `0` for `None`, `1` for `Some`, followed by the encoding of the inner value if present.
 //!
-//! - **HashMap:**  
+//! - HashMap:  
 //!   Encoded as a 4-byte `u32` length prefix (number of entries), then each key and value is encoded in sequence.
 //!
-//! - **Custom Structs and Enums:**  
+//! - Custom Structs and Enums:  
 //!   Encoded field by field, in the order defined in the struct. Enums use a tag byte to indicate the variant,
 //!   followed by the encoded fields for that variant (if any).
 //!

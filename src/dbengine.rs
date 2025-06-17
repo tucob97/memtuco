@@ -156,8 +156,8 @@ impl FileHandle {
 /// 
 /// What happen inside the Journal File? How is writed?
 ///
-/// /// /// This system uses **physical logging**. Instead of recording the logical `UPDATE`
-/// /// /// operation, we save the *entire original page image* before modification.
+/// /// /// This system uses a Journal File. Instead of recording the logical `UPDATE`
+/// /// /// operation, we save the 'entire original page image' before modification.
 /// /// /// This simplifies recovery immensely. The `StorageManager` creates these records.
 /// /// ///
 /// /// /// /// Byte layout for a journal entry for a page in `users.tbl`:
@@ -183,7 +183,7 @@ impl FileHandle {
 /// /// The goal is to make the recovery code as simple, fast, and "dumb" as possible,
 /// /// because simple code has fewer places to fail.
 ///
-/// /// **Scenario A: Journal stores the Physical Offset (Our Current Design)**
+/// /// Scenario A: Journal stores the Physical Offset (Our Current Design)
 /// /// The recovery process is a tight, brain-dead loop:
 /// /// 1. Read the file name (`"users.tbl"`).
 /// /// 2. Read the physical offset (`5120`).
@@ -192,7 +192,7 @@ impl FileHandle {
 /// /// 5. `write()` the 1024 bytes.
 /// /// 6. Repeat.
 ///
-/// /// Notice there are **zero calculations** in this loop. It's just reading and
+/// /// Notice there are zero calculations in this loop. It's just reading and
 /// /// writing raw bytes to a known location.
 ///
 /// /// +------------------+     +-------------------+     +-----------------+
@@ -206,8 +206,8 @@ impl FileHandle {
 /// /// Our `PAGE_SIZE` is `1024`, which is `2^10`.
 ///
 /// /// The compiler knows that dividing an integer by `2^10` is mathematically
-/// /// identical to performing a **bitwise right shift** by 10 positions. 
-/// /// So, while we **write** this readable code in Rust:
+/// /// identical to performing a bitwise right shift by 10 positions. 
+/// /// So, while we write this readable code in Rust:
 /// /// ```rust
 /// /// /// let page_number = pos / 1024;
 /// /// ```

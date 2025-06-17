@@ -18,9 +18,9 @@ use crate::dbengine::compare_sqlvalue; // This is a bool-returning function
 /// /// The `group_by` function calculates aggregates by consuming the entire input iterator
 /// /// and building a hash map in memory.
 ///
-/// /// -   **Key:** The grouping key is formed by concatenating the string representations
+/// /// -   Key: The grouping key is formed by concatenating the string representations
 /// ///     of the values in the grouping columns for a given row.
-/// /// -   **Value:** The value is a list of "accumulators," one for each aggregate
+/// /// -   Value: The value is a list of "accumulators," one for each aggregate
 /// ///     function (`SUM`, `COUNT`, `AVG`, etc.).
 ///
 /// /// For each row processed, we calculate its key. If the key is new, we create a new
@@ -29,7 +29,7 @@ use crate::dbengine::compare_sqlvalue; // This is a bool-returning function
 /// /// and "finish" each accumulator to produce the final aggregate value for each group.
 ///
 /// ///
-/// /// /// **Visualizing Hash Aggregation:**
+/// /// /// Visualizing Hash Aggregation:
 /// ///
 /// /// ///                                        Input Rows
 /// /// ///                                +---------------------------+

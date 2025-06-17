@@ -4,7 +4,7 @@ use crate::dberror::DbError;
 use crate::tokenizer::*;
 use std::fmt;
 
-/// # The Query Planner (`planner.rs`)
+/// # The Query Planner 
 ///
 /// /// This module is the core of the database's query processing logic. Its primary
 /// /// responsibility is to take a structured `Statement` (the Abstract Syntax Tree or
@@ -137,18 +137,18 @@ use std::fmt;
 ///
 /// ### Explanation of Key Planning Steps
 ///
-/// /// 1.  **Index Scan Optimization**: The planner first checks the `WHERE` clause for
+/// /// 1.  Index Scan Optimization: The planner first checks the `WHERE` clause for
 /// ///     a simple `column = literal` predicate. If a matching index exists on that
 /// ///     column, it generates an `IndexScan` instead of a `TableScan` for much
 /// ///     faster data retrieval. In our example, `employees.status = 'active'` does not use
 /// ///     an index, so we start with a `TableScan`.
 ///
-/// /// 2.  **`WHERE` Clause Planning**: The `condition_expr_to_expression` function is
+/// /// 2.  `WHERE` Clause Planning: The `condition_expr_to_expression` function is
 /// ///     called to recursively convert the potentially complex `WHERE` clause from the
 /// ///     parser's AST into a single `Expression` enum. This `Expression` is then
 /// ///     placed inside a `Filter` node.
 ///
-/// /// 3.  **`GROUP BY` and Aggregate Planning**: This is a two-stage process.
+/// /// 3.  `GROUP BY` and Aggregate Planning: This is a two-stage process.
 /// ///     -   The planner first walks through all expressions in the `SELECT` list and
 /// ///         the `HAVING` clause to find every aggregate function used. The helper
 /// ///         function `collect_aggs` performs this recursive search.
@@ -157,7 +157,7 @@ use std::fmt;
 /// ///         that even if `COUNT(employees.id)` is used in both `SELECT` and `HAVING`, it is
 /// ///         only calculated once per group.
 ///
-/// /// 4.  **Order of Operations**: The planner follows the logical order of SQL
+/// /// 4.  Order of Operations: The planner follows the logical order of SQL
 /// ///     processing, which is crucial for correctness. The sequence is `FROM/JOIN` -> `WHERE`
 /// ///     -> `GROUP BY` -> `HAVING` -> `ORDER BY` -> `SELECT` -> `LIMIT`. 
 /// ///      The nested structure of the `PlanNode` tree naturally enforces this execution order.

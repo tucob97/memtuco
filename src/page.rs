@@ -1970,7 +1970,7 @@ impl TableRoot {
             .ok_or_else(|| DbError::Page(format!("Row {} not found on page {}", rowid, page_idx)))?;
         let old_cell = page.veccell[cell_idx as usize].clone();
 
-        // Fully reconstruct the old Row (main + overflow) **safely**
+        // Fully reconstruct the old Row (main + overflow) 
         let old_row: Row = {
             let mut bytes = old_cell.row_payload.clone();
             let mut nxt = old_cell.overflow_page;

@@ -61,7 +61,7 @@ const RESP_RESULT_SET: u8 = 0x82;
 /// /// /// The protocol, defined in `transaction.rs`, uses length-prefixed framing to
 /// /// /// send messages over TCP. A result set is sent as a single, large message.
 /// ///
-/// /// /// **1. Overall Message Frame:**
+/// /// /// 1. Overall Message Frame:
 /// /// /// +----------------------------------------------------------------------+
 /// /// /// | [ 0x82 ]  [ 00 00 00 2D ]    [ ... 45 bytes of payload ... ]         |
 /// /// /// +----------+-----------------+-----------------------------------------+
@@ -69,7 +69,7 @@ const RESP_RESULT_SET: u8 = 0x82;
 /// /// /// | (1 byte) | (u32, big-e)    | (schema info + rows)                    |
 /// /// /// +----------------------------------------------------------------------+
 /// ///
-/// /// /// **2. Payload for one row `("Alice", 30.0)` from an example query:**
+/// /// /// 2. Payload for one row `("Alice", 30.0)` from an example query:
 /// /// ///    (Assuming this is the first and only row in this message)
 /// /// /// +--------------------------------------------------------------------------------------------------+
 /// /// /// | [ 02 00 00 00 ] [ 04 00 00 00 6E 61 6D 65 0C ] [ 0B 00 00 00 64 6F ... 65 0A ] [ 01 00 00 00 ]     |
@@ -78,7 +78,7 @@ const RESP_RESULT_SET: u8 = 0x82;
 /// /// /// | = 2 (u32)     | (len, bytes, type_tag)           | (len, bytes, type_tag)       | = 1 (u32)       |
 /// /// /// +--------------------------------------------------------------------------------------------------+
 /// /// /// |                                                                                                  |
-/// /// /// | **Row 1 Data (bintuco-encoded):** |
+/// /// /// | Row 1 Data (bintuco-encoded): |
 /// /// /// | [ 1A 00 00 00 ] [ 02 00 00 00 09 05 00 00 00 41 6C 69 63 65 07 00 00 00 00 00 00 3E 40 ]           |
 /// /// /// +---------------+----------------------------------------------------------------------------------+
 /// /// /// | Row Byte Len  | bintuco encoded `Row { values: [VARCHAR("Alice"), DOUBLE(30.0)] }`                |
@@ -100,12 +100,12 @@ const RESP_RESULT_SET: u8 = 0x82;
 ///
 /// /// The `RwLock` (Read-Write Lock) is fundamental to the concurrency strategy:
 ///
-/// /// 1.  **Read Access (Shared Lock):** Multiple threads can acquire a read lock
+/// /// 1.  Read Access (Shared Lock): Multiple threads can acquire a read lock
 /// ///     simultaneously. This is used for `SELECT` queries that do not modify data.
 /// ///     As long as no thread holds a write lock, any number of clients can read
 /// ///     from the database in parallel. A read lock is acquired with `db.read()`.
 ///
-/// /// 2.  **Write Access (Exclusive Lock):** Only one thread can acquire a write lock
+/// /// 2.  Write Access (Exclusive Lock): Only one thread can acquire a write lock
 /// ///     at any given time. This lock is *exclusive*, meaning no other read or write
 /// ///     locks can be acquired while it is held. This is essential for all data
 /// ///     modification operations (`INSERT`, `UPDATE`, `DELETE`, `CREATE`) to ensure
@@ -113,7 +113,7 @@ const RESP_RESULT_SET: u8 = 0x82;
 /// ///     `db.write()`.
 ///
 /// ///
-/// /// /// **Visualizing the Lock States:**
+/// /// /// Visualizing the Lock States:
 /// ///
 /// /// /// +--------------------------------------------------------------------------+
 /// /// /// |               `Arc<RwLock<DatabaseEngine>>` State                         |
@@ -154,7 +154,7 @@ const RESP_RESULT_SET: u8 = 0x82;
 ///
 /// /// The server supports both explicit (`BEGIN...COMMIT`) and auto-commit transactions.
 ///
-/// /// -   **Auto-Commit Mode:** If a client sends a write command (`INSERT`, `UPDATE`, etc.)
+/// /// -   Auto-Commit Mode: If a client sends a write command (`INSERT`, `UPDATE`, etc.)
 /// ///     without being inside a `BEGIN...COMMIT` block, the server handles it atomically:
 /// ///     1.  Acquire an exclusive write lock (`db.write()`).
 /// ///     2.  Start an internal transaction.
@@ -163,7 +163,7 @@ const RESP_RESULT_SET: u8 = 0x82;
 /// ///     5.  If it fails, roll back the transaction.
 /// ///     6.  Release the write lock.
 /// ///
-/// /// -   **Explicit Transaction Mode:** When a client sends a `BEGIN` command:
+/// /// -   Explicit Transaction Mode: When a client sends a `BEGIN` command:
 /// ///     1.  The server thread for that client acquires a write lock (`db.write()`).
 /// ///     2.  It holds onto this lock (`txn_guard`) for the entire duration of the
 /// ///         transaction. This means no other client can read or write to the
@@ -175,8 +175,8 @@ const RESP_RESULT_SET: u8 = 0x82;
 /// ### Concurrency Summary
 ///
 /// /// This model provides a simple but effective approach to safety:
-/// /// -   **High Concurrency for Reads:** Many clients can run `SELECT` queries in parallel.
-/// /// -   **Serial Execution for Writes:** All write operations (and explicit transactions)
+/// /// -   High Concurrency for Reads: Many clients can run `SELECT` queries in parallel.
+/// /// -   Serial Execution for Writes: All write operations (and explicit transactions)
 /// ///     are executed one at a time, preventing conflicts at the cost of parallelism
 /// ///     for write-heavy workloads. This is a classic "single-writer" concurrency model.
 

@@ -32,12 +32,12 @@ use std::collections::VecDeque;
 ///
 /// /// The `RowSorter` implements a multi-phase sort algorithm.
 ///
-/// /// 1.  **Create Runs:** The input iterator is consumed in chunks (e.g., a few
+/// /// 1.  Create Runs: The input iterator is consumed in chunks (e.g., a few
 /// ///     thousand rows at a time). Each chunk is sorted in memory and then written
 /// ///     to a temporary file on disk. Each of these sorted temporary files is
 /// ///     called a "run".
 ///
-/// /// 2.  **Merge Runs:** After all runs have been created, a K-way merge is performed.
+/// /// 2.  Merge Runs: After all runs have been created, a K-way merge is performed.
 /// ///     A `BinaryHeap` (acting as a min-heap) is used to manage the merge. The
 /// ///     heap stores the *next* row from each of the K runs. To get the next row
 /// ///     in the final sorted sequence, we simply pop the smallest item from the heap.
@@ -47,19 +47,19 @@ use std::collections::VecDeque;
 ///
 /// 
 /// 
-/// /// /// **Visualizing the Merge Phase:**
+/// /// /// Visualizing the Merge Phase:
 /// ///
 /// /// /// +-------------------------------------------------------------------+
 /// /// /// |                        Final Sorted Output                        |
 /// /// /// +---------------------------------^---------------------------------+
 /// /// ///                                   | Pop smallest row
 /// /// /// +---------------------------------+---------------------------------+
-/// /// /// |                 Min-Heap (in memory)                            |
-/// /// /// | Stores the next available row from each run.                    |
-/// /// /// |                                                                 |
-/// /// /// |  HeapItem { row: [Eve, 25], run: 2 }                            |
-/// /// /// |  HeapItem { row: [Frank, 30], run: 0 }                          |
-/// /// /// |  HeapItem { row: [Grace, 35], run: 1 }                          |
+/// /// /// |                 Min-Heap (in memory)                              |
+/// /// /// | Stores the next available row from each run.                      |
+/// /// /// |                                                                   |
+/// /// /// |  HeapItem { row: [Eve, 25], run: 2 }                              |
+/// /// /// |  HeapItem { row: [Frank, 30], run: 0 }                            |
+/// /// /// |  HeapItem { row: [Grace, 35], run: 1 }                            |
 /// /// /// +------------------^----------------^----------------^--------------+
 /// /// ///                  | Fetch next     | Fetch next     | Fetch next
 /// /// /// +----------------|----------------|----------------|----------------+
@@ -68,7 +68,8 @@ use std::collections::VecDeque;
 /// /// /// | [Frank, 30]    | [Grace, 35]    | [Eve, 25]      |                |
 /// /// /// | ...            | ...            | ...            |                |
 /// /// /// +----------------+----------------+----------------+----------------+
-
+/// 
+/// Otherwise order is reversed for DESC
 
 pub struct RowSorter {
     schema: TableSchema,
@@ -320,7 +321,7 @@ fn read_next_row(reader: &mut BufReader<File>) -> Result<Option<Row>, DbError> {
 /// /// on two large datasets. It leverages the `RowSorter` to ensure both its left and
 /// /// right inputs are sorted on their respective join keys.
 ///
-/// /// **Algorithm:**
+/// /// Algorithm:
 /// ///
 /// /// 1.  Independently sort the left and right input iterators using `RowSorter`.
 /// /// 2.  Iterate through the sorted left input. For each left row:
