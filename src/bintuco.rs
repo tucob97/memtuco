@@ -1,3 +1,62 @@
+//!# Serialization Strategy 
+//!
+//! /// The `bintuco.rs` module implements a custom binary serialization format. It defines
+//! /// `BintucoEncode` and `BintucoDecode` traits to convert Rust structs and enums into a
+//! /// portable, compact byte stream suitable for storage on disk
+//!
+//! ### `bintuco` vs. Raw Memory Casting
+//!
+//! /// It is crucial to understand the design choice made here. This database uses a
+//! /// serialization library (`bintuco`) to encode its data structures.
+//!
+//! /// bintuco's Approach:
+//! /// 1.  Encode: To save a struct (like a `Row` or `BtreeNode`), `bintuco` walks
+//! ///     through its fields one by one and appends their byte representations to a
+//! ///     `Vec<u8>`. For example, it writes a tag for an enum variant, then the bytes
+//! ///     for its data.
+//! /// 2.  Decode: To read a struct, it reads the bytes from disk into a buffer and
+//! ///     then parses that buffer, reconstructing the struct in memory field by field.
+//!
+//! ///
+//! /// /// How High-Performance RDBMS Often Work (The Alternative):
+//! ///
+//! /// /// Many production-grade databases (like PostgreSQL or SQLite) avoid this kind of
+//! /// /// serialization for their core on-disk page structures for maximum performance.
+//! /// /// Instead, they use a more direct memory-casting approach.
+//! ///
+//! /// /// 1.  Struct Layout: They define their page and header structs to guarantee a specific,
+//! /// ///     fixed memory layout with no padding or reordering by the compiler.
+//! /// ///     
+//! /// /// 2.  Direct Casting: To "read" a page from disk, they take a pointer to the
+//! /// ///     correct offset in the memory-mapped region and cast it directly into a pointer
+//! /// ///     to their page struct (e.g., `&mut Page`). No parsing or byte-by-byte
+//! /// ///     deserialization is needed. To "write", they simply modify the fields of the
+//! /// ///     struct in memory, and the operating system handles flushing the changes to disk.
+//!
+//! ///
+//! /// /// Visualizing the Difference:
+//! ///
+//! /// /// memtuco's `bintuco` Method:
+//! /// /// +-------------+     encode()     +----------------+     write()      +-----------+
+//! /// /// | Struct in   | ---------------> | `Vec<u8>` in   | ---------------> | .db File  |
+//! /// /// | Memory      | <--------------- | Memory         | <--------------- | on Disk   |
+//! /// /// +-------------+     decode()     +----------------+      read()      +-----------+
+//! ///
+//! ///
+//! /// /// Typical High-Performance RDBMS Method:
+//! /// /// +----------------------------+   read()   +------------------+     cast     +-------------------+
+//! /// /// | .db File on Disk           | ---------> | Raw byte buffer  | -----------> | `&Page` reference |
+//! /// /// |                            | <--------- | in memory        | <----------- | in memory         |
+//! /// /// +----------------------------+   write()  +------------------+ (modify ptr) +-------------------+
+//! ///
+//! /// /// Why was `bintuco` chosen here?
+//! /// /// The `bintuco` approach is much simpler to implement and significantly more flexible.
+//! /// /// It easily handles variable-sized data like `String` and `Vec` without complex
+//! /// /// pointer arithmetic. The trade-off is performance; the serialization/deserialization
+//! /// /// step adds overhead that direct memory casting avoids. This project prioritizes
+//! /// /// simplicity and clarity of implementation over raw performance.
+
+//!
 //! Bintuco is a simple binary encoding/decoding module designed to serialize and deserialize
 //! Rust data structures into a compact binary format for disk storage.
 //!
