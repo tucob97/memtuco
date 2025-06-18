@@ -10,6 +10,7 @@ use csv::WriterBuilder;
 use serde::{Deserialize, Serialize};
 use chrono::{NaiveDate, NaiveDateTime, Duration};
 use rand::Rng;
+use std::io::Write;
 
 // --- Simulated Weather Data ---
 
@@ -167,4 +168,16 @@ pub fn create_taxi_csv(dir: &Path, num_rides: usize) -> Result<PathBuf, Box<dyn 
 
     wtr.flush()?;
     Ok(file_path)
+}
+
+
+/// Generates a CSV with a single 'number' column (0..n-1).
+pub fn create_simple_number_csv(base_dir: &Path, n: usize) -> std::io::Result<PathBuf> {
+    let path = base_dir.join("numbers.csv");
+    let mut file = File::create(&path)?;
+    writeln!(file, "number")?;
+    for i in 0..n {
+        writeln!(file, "{}", i)?;
+    }
+    Ok(path)
 }

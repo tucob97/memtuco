@@ -310,7 +310,7 @@ fn clear_db(db_path: &str) {
 
 #[test]
 fn test_avg_base_fare_groupby_having_print() {
-    let db_name = "target/mydb_avg_base_fare_groupby_having_print";
+    let db_name = "target/select/mydb_avg_base_fare_groupby_having_print";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -346,7 +346,7 @@ fn test_avg_base_fare_groupby_having_print() {
 
 #[test]
 fn test_avg_fare_amount_groupby_having() {
-    let db_name = "target/mydb_avg_fare_amount_groupby_having";
+    let db_name = "target/select/mydb_avg_fare_amount_groupby_having";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -386,7 +386,7 @@ fn test_avg_fare_amount_groupby_having() {
 
 #[test]
 fn test_basic_select() {
-    let db_name = "target/mydb_basic_select";
+    let db_name = "target/select/mydb_basic_select";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -420,7 +420,7 @@ fn test_basic_select() {
 
 #[test]
 fn test_basic_order() {
-    let db_name = "target/mydb_basic_order";
+    let db_name = "target/select/mydb_basic_order";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -454,7 +454,7 @@ fn test_basic_order() {
 
 #[test]
 fn test_basic_join() {
-    let db_name = "target/mydb_basic_join";
+    let db_name = "target/select/mydb_basic_join";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -488,7 +488,7 @@ fn test_basic_join() {
 
 #[test]
 fn test_avg_count_aggregate() {
-    let db_name = "target/mydb_avg_count_aggregate";
+    let db_name = "target/select/mydb_avg_count_aggregate";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -522,7 +522,7 @@ fn test_avg_count_aggregate() {
 
 #[test]
 fn test_avg_count_groupby() {
-    let db_name = "target/mydb_avg_count_groupby";
+    let db_name = "target/select/mydb_avg_count_groupby";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -556,7 +556,7 @@ fn test_avg_count_groupby() {
 
 #[test]
 fn test_weather_prcp_filter() {
-    let db_name = "target/mydb_prcp_filter";
+    let db_name = "target/select/mydb_prcp_filter";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -578,7 +578,7 @@ fn test_weather_prcp_filter() {
 
 #[test]
 fn test_min_tmin() {
-    let db_name = "target/mydb_min_tmin";
+    let db_name = "target/select/mydb_min_tmin";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -599,7 +599,7 @@ fn test_min_tmin() {
 
 #[test]
 fn test_max_tmax() {
-    let db_name = "target/mydb_max_tmax";
+    let db_name = "target/select/mydb_max_tmax";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -620,7 +620,7 @@ fn test_max_tmax() {
 
 #[test]
 fn test_sum_passenger_count() {
-    let db_name = "target/mydb_sum_passenger_count";
+    let db_name = "target/select/mydb_sum_passenger_count";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -641,7 +641,7 @@ fn test_sum_passenger_count() {
 
 #[test]
 fn test_count_ny_us() {
-    let db_name = "target/mydb_count_ny_us";
+    let db_name = "target/select/mydb_count_ny_us";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -667,7 +667,7 @@ fn test_count_ny_us() {
 
 #[test]
 fn test_distinct_city() {
-    let db_name = "target/mydb_distinct_city";
+    let db_name = "target/select/mydb_distinct_city";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -688,7 +688,7 @@ fn test_distinct_city() {
 
 #[test]
 fn test_tmax_tmin_diff() {
-    let db_name = "target/mydb_tmax_tmin_diff";
+    let db_name = "target/select/mydb_tmax_tmin_diff";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -714,7 +714,7 @@ fn test_tmax_tmin_diff() {
 
 #[test]
 fn test_join_zero_count() {
-    let db_name = "target/mydb_join_zero_count";
+    let db_name = "target/select/mydb_join_zero_count";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -740,7 +740,7 @@ fn test_join_zero_count() {
 
 #[test]
 fn test_taxi_filter_complex() {
-    let db_name = "target/mydb_taxi_filter_complex";
+    let db_name = "target/select/mydb_taxi_filter_complex";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -761,7 +761,7 @@ fn test_taxi_filter_complex() {
 
 #[test]
 fn test_payment_type_groupby() {
-    let db_name = "target/mydb_payment_type_groupby";
+    let db_name = "target/select/mydb_payment_type_groupby";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -782,7 +782,7 @@ fn test_payment_type_groupby() {
 
 #[test]
 fn test_weather_snow_filter() {
-    let db_name = "target/mydb_weather_snow_filter";
+    let db_name = "target/select/mydb_weather_snow_filter";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -806,7 +806,7 @@ fn test_weather_snow_filter() {
 
 #[test]
 fn test_avg_trip_distance() {
-    let db_name = "target/mydb_avg_trip_distance";
+    let db_name = "target/select/mydb_avg_trip_distance";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -830,7 +830,7 @@ fn test_avg_trip_distance() {
 
 #[test]
 fn test_congestion_surcharge_count() {
-    let db_name = "target/mydb_congestion_count";
+    let db_name = "target/select/mydb_congestion_count";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -854,7 +854,7 @@ fn test_congestion_surcharge_count() {
 
 #[test]
 fn test_prcp_snow_ratio() {
-    let db_name = "target/mydb_prcp_snow_ratio";
+    let db_name = "target/select/mydb_prcp_snow_ratio";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -878,7 +878,7 @@ fn test_prcp_snow_ratio() {
 
 #[test]
 fn test_ratecode_groupby() {
-    let db_name = "target/mydb_ratecode_groupby";
+    let db_name = "target/select/mydb_ratecode_groupby";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -902,7 +902,7 @@ fn test_ratecode_groupby() {
 
 #[test]
 fn test_trip_distance_filter() {
-    let db_name = "target/mydb_trip_distance_filter";
+    let db_name = "target/select/mydb_trip_distance_filter";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -926,7 +926,7 @@ fn test_trip_distance_filter() {
 
 #[test]
 fn test_snow_sum() {
-    let db_name = "target/mydb_snow_sum";
+    let db_name = "target/select/mydb_snow_sum";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -950,7 +950,7 @@ fn test_snow_sum() {
 
 #[test]
 fn test_count_tmax_gt_tmin() {
-    let db_name = "target/mydb_count_tmax_gt_tmin";
+    let db_name = "target/select/mydb_count_tmax_gt_tmin";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -974,7 +974,7 @@ fn test_count_tmax_gt_tmin() {
 
 #[test]
 fn test_temp_diff_filter() {
-    let db_name = "target/mydb_temp_diff_filter";
+    let db_name = "target/select/mydb_temp_diff_filter";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -998,7 +998,7 @@ fn test_temp_diff_filter() {
 
 #[test]
 fn test_taxi_pu_do_equal() {
-    let db_name = "target/mydb_pu_do_equal";
+    let db_name = "target/select/mydb_pu_do_equal";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -1022,7 +1022,7 @@ fn test_taxi_pu_do_equal() {
 
 #[test]
 fn test_select_weather_tmin_tmax() {
-    let db_name = "target/mydb_select_weather_tmin_tmax";
+    let db_name = "target/select/mydb_select_weather_tmin_tmax";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -1046,7 +1046,7 @@ fn test_select_weather_tmin_tmax() {
 
 #[test]
 fn test_select_taxi_amounts() {
-    let db_name = "target/mydb_select_taxi_amounts";
+    let db_name = "target/select/mydb_select_taxi_amounts";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -1070,7 +1070,7 @@ fn test_select_taxi_amounts() {
 
 #[test]
 fn test_count_by_city() {
-    let db_name = "target/mydb_count_by_city";
+    let db_name = "target/select/mydb_count_by_city";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -1094,7 +1094,7 @@ fn test_count_by_city() {
 
 #[test]
 fn test_avg_tmin_by_city() {
-    let db_name = "target/mydb_avg_tmin_by_city";
+    let db_name = "target/select/mydb_avg_tmin_by_city";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -1118,7 +1118,7 @@ fn test_avg_tmin_by_city() {
 
 #[test]
 fn test_sum_prcp_by_station() {
-    let db_name = "target/mydb_sum_prcp_by_station";
+    let db_name = "target/select/mydb_sum_prcp_by_station";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -1142,7 +1142,7 @@ fn test_sum_prcp_by_station() {
 
 #[test]
 fn test_weather_awnd_filter_ordered() {
-    let db_name = "target/mydb_weather_awnd_filter";
+    let db_name = "target/select/mydb_weather_awnd_filter";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -1166,7 +1166,7 @@ fn test_weather_awnd_filter_ordered() {
 
 #[test]
 fn test_taxi_distance_plus_extra() {
-    let db_name = "target/mydb_taxi_distance_plus_extra";
+    let db_name = "target/select/mydb_taxi_distance_plus_extra";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -1190,7 +1190,7 @@ fn test_taxi_distance_plus_extra() {
 
 #[test]
 fn test_taxi_pu_eq_do() {
-    let db_name = "target/mydb_taxi_pu_eq_do";
+    let db_name = "target/select/mydb_taxi_pu_eq_do";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -1214,7 +1214,7 @@ fn test_taxi_pu_eq_do() {
 
 #[test]
 fn test_distinct_payment_type() {
-    let db_name = "target/mydb_distinct_payment_type";
+    let db_name = "target/select/mydb_distinct_payment_type";
     clear_db(db_name);
 
     let env = get_test_environment();
@@ -1238,7 +1238,7 @@ fn test_distinct_payment_type() {
 
 #[test]
 fn test_weather_temp_and_ratio() {
-    let db_name = "target/mydb_weather_temp_and_ratio";
+    let db_name = "target/select/mydb_weather_temp_and_ratio";
     clear_db(db_name);
 
     let env = get_test_environment();

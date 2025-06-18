@@ -1153,7 +1153,7 @@ impl TableRoot {
                 // Remove it so it won't be returned again
                 let _ = self
                     .page_vec
-                    .search_and_remove_value_at_least(search_key.clone(), storage)?;
+                    .delete(&search_key, storage)?;
                 return Ok(triplet.page);
             }
         }
@@ -1448,6 +1448,7 @@ impl TableRoot {
             let mut write_buf = vec![0u8; PAGE_SIZE];
             let encoded = bintuco::encode_to_vec(&table_page)
                 .map_err(|e| DbError::Bintuco(e.to_string()))?;
+            eprintln!("ENCODED ={:?} ", encoded);
             write_buf[..encoded.len()].copy_from_slice(&encoded);
 
             // compute byte offset for this page
@@ -1464,7 +1465,7 @@ impl TableRoot {
                 rowid: 0,
                 page: idx_free,
             };
-            if let Some((_node, Some(removed_triplet))) = self.page_vec.search_and_remove_value_at_least(
+            if let Some(removed_triplet) = self.page_vec.search_and_remove_value_at_least(
                 SqlValue::UINT(std::cmp::min((row_enc_len + PADDING_ROW_BYTES) as u32, PAYLOAD_MIN)),
                 storage,
             )? {
@@ -1502,7 +1503,7 @@ impl TableRoot {
                 rowid: 0,
                 page: idx_free,
             };
-            if let Some((_node, Some(removed_triplet))) = self.page_vec.search_and_remove_value_at_least(
+            if let Some(removed_triplet) = self.page_vec.search_and_remove_value_at_least(
                 SqlValue::UINT(PAYLOAD_MIN),
                 storage,
             )? {
@@ -1925,7 +1926,7 @@ impl TableRoot {
         let free_now = PAGE_SIZE - enc.len();
         // remove the old entry
         let old_req = SqlValue::UINT(std::cmp::min((enc.len() + PADDING_ROW_BYTES) as u32, PAYLOAD_MIN));
-        if let Some((_node, Some(_))) =
+        if let Some(_) =
             self.page_vec.search_and_remove_value_at_least(old_req.clone(), storage)?
         {
             let trip = Triplet {
@@ -2021,7 +2022,7 @@ impl TableRoot {
         for idx in &mut self.index_vec {
             if let Some(pos) = self.tb_schema.name_col.iter().position(|c| c == &idx.key_name)
             {
-                let _ = idx.search_and_remove_value_at_least(old_row.values[pos].clone(), storage);
+                let _ = idx.delete(&old_row.values[pos], storage);
             }
         }
 

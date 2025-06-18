@@ -314,56 +314,38 @@ impl Btree{
         sql_value: SqlValue,
         storage: &StorageManager,
     ) -> Result<Option<(BtreeNode, Option<Triplet>)>, DbError> {
-        // Build the same logical filename you registered at creation time:
         let logical_name = self.btree_name_file.clone();
-
-        // Grab the FileHandle from StorageManager:
         let handle = storage.get_handle(&logical_name).ok_or_else(|| {
             DbError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 format!("B-tree file not registered: {}", logical_name),
             ))
         })?;
-
+    
         let mut index = self.root_index;
-
+    
         loop {
-            // Read the entire 1024-byte page out of the handle:
             let mut buf = vec![0u8; PAGE_SIZE];
             handle.read_at((index * PAGE_SIZE) as u64, &mut buf)?;
-
-            // Decode one BtreeNode from those 1024 bytes
+    
             let (node, _): (BtreeNode, usize) = bintuco::decode_from_slice(&buf)
                 .map_err(|e| DbError::Bintuco(e.to_string()))?;
-
+    
             if node.is_leaf {
-                // Once we hit a leaf, scan for the smallest key >= sql_value
-                let mut candidate: Option<Triplet> = None;
-                for triplet in &node.keys {
-                    if let Some(cmp) = triplet.key.partial_cmp(&sql_value) {
-                        if cmp == std::cmp::Ordering::Greater || cmp == std::cmp::Ordering::Equal {
-                            match &candidate {
-                                None => candidate = Some(triplet.clone()),
-                                Some(current) => {
-                                    if let Some(cmp2) = triplet.key.partial_cmp(&current.key) {
-                                        if cmp2 == std::cmp::Ordering::Less {
-                                            candidate = Some(triplet.clone());
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                // Find smallest >= sql_value in this leaf
+                let candidate = node.keys.iter()
+                    .filter(|t| t.key >= sql_value)
+                    .min_by(|a, b| a.key.partial_cmp(&b.key).unwrap())
+                    .cloned();
                 return Ok(Some((node, candidate)));
             } else {
-                // Internal node: decide which child page to descend into
-                let pos = node
-                    .keys
-                    .iter()
-                    .position(|t| t.key >= sql_value);
-
-                index = match pos {
+                // PATCH: clone here, to avoid borrow issues
+                if let Some(triplet) = node.keys.iter().find(|t| t.key == sql_value).cloned() {
+                    return Ok(Some((node, Some(triplet))));
+                }
+                // Otherwise descend to child as usual
+                let pos = node.keys.iter().position(|t| t.key >= sql_value);
+                let child_index = match pos {
                     Some(p) => node.children.get(p)
                         .cloned()
                         .ok_or_else(|| DbError::BTree(format!("Child index {} out of bounds for node {}", p, node.index)))?,
@@ -371,79 +353,91 @@ impl Btree{
                         .cloned()
                         .ok_or_else(|| DbError::BTree(format!("BTreeNode {} has no children but was treated as internal node. Keys: {:?}", node.index, node.keys)))?,
                 };
+                index = child_index;
             }
         }
     }
+    
+    
 
-    /// Refactored to use StorageManager instead of opening its own File.
     pub fn search_and_remove_value_at_least(
         &mut self,
         sql_value: SqlValue,
         storage: &StorageManager,
-    ) -> Result<Option<(BtreeNode, Option<Triplet>)>, DbError> {
-        // Build the same logical filename you registered in `new`:
-        let logical_name = self.btree_name_file.clone();
-
-        // Grab the FileHandle from StorageManager:
-        let handle = storage.get_handle(&logical_name).ok_or_else(|| {
-            DbError::Io(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("B-tree file not registered: {}", logical_name),
-            ))
-        })?;
-
-        let mut index = self.root_index;
-
-        loop {
-            // 1) Read the 1024-byte node from disk:
-            
-            let mut buf = vec![0u8; PAGE_SIZE];
-            handle.read_at((index * PAGE_SIZE) as u64, &mut buf)?;
-
-            // 2) Decode it into a BtreeNode
-            let (mut node, _): (BtreeNode, usize) = bintuco::decode_from_slice(&buf)
-                .map_err(|e| DbError::Bintuco(e.to_string()))?;
+    ) -> Result<Option<Triplet>, DbError> {
+        // Recursive inner function: returns (Option<removed_triplet>, underflow)
+        fn remove_at_least_recursive(
+            btree: &mut Btree,
+            node_idx: usize,
+            key: &SqlValue,
+            storage: &StorageManager,
+        ) -> Result<(Option<Triplet>, bool), DbError> {
+            let mut node = btree.load_node(node_idx, storage)?;
 
             if node.is_leaf {
-                // We’re at a leaf. Find the first key >= sql_value
-                let candidate_pos = node.keys.iter()
-                    .position(|triplet| triplet.key >= sql_value);
-
-                if let Some(pos) = candidate_pos {
-                    // 3) Remove and return that Triplet
+                // Find first key >= input
+                if let Some(pos) = node.keys.iter().position(|t| t.key >= *key) {
                     let removed = node.keys.remove(pos);
-
-                    // 4) Re-serialize this updated node back into a 1024-byte buffer
-                    let mut write_buf = vec![0u8; PAGE_SIZE];
-                    let encoded = bintuco::encode_to_vec(&node)
-                        .map_err(|e| DbError::Bintuco(e.to_string()))?;
-                    write_buf[..encoded.len()].copy_from_slice(&encoded);
-
-                    // 5) Overwrite that node’s page via write_page (journaling + write)
-                    let offset = (index * PAGE_SIZE) as u64;
-                    storage.write_page(&self.btree_name_file, offset, &write_buf)?;
-
-
-                    return Ok(Some((node, Some(removed))));
+                    btree.write_node(&node, storage)?;
+                    let underflow = !node.is_root && node.keys.len() < MIN_KEYS;
+                    return Ok((Some(removed), underflow));
                 } else {
-                    // No key ≥ sql_value here
-                    return Ok(Some((node, None)));
+                    // Nothing >= key found in this leaf
+                    return Ok((None, false));
                 }
+            }
+
+            // Internal node
+            let mut child_pos = 0;
+            while child_pos < node.keys.len() && node.keys[child_pos].key < *key {
+                child_pos += 1;
+            }
+
+            // If there is a key ≥ input in this node, and it equals input, do "internal delete logic"
+            if child_pos < node.keys.len() && node.keys[child_pos].key >= *key {
+                // To match ≥ logic: replace this key with predecessor, and delete pred in left child
+                let pred_child_idx = node.children[child_pos];
+                let predecessor = btree.get_max_triplet(pred_child_idx, storage)?;
+                let removed_triplet = node.keys[child_pos].clone(); // this is the one we're "removing" logically
+                node.keys[child_pos] = predecessor.clone();
+                btree.write_node(&node, storage)?;
+
+                // Recurse into left child to remove predecessor
+                let (removed, needs_rebalance) = remove_at_least_recursive(btree, pred_child_idx, &predecessor.key, storage)?;
+                if needs_rebalance {
+                    btree.rebalance_child(&mut node, child_pos, storage)?;
+                }
+                btree.write_node(&node, storage)?;
+                // Always return the "removed" triplet from here (the one ≥ input), not the predecessor
+                return Ok((Some(removed_triplet), !node.is_root && node.keys.len() < MIN_KEYS));
             } else {
-                // Internal node: decide which child to descend into
-                let pos = node.keys.iter().position(|t| t.key >= sql_value);
-                index = if let Some(p) = pos {
-                    node.children.get(p)
-                        .cloned()
-                        .ok_or_else(|| DbError::BTree(format!("Child index {} out of bounds for node {}", p, node.index)))?
-                } else {
-                    node.children.last()
-                        .cloned()
-                        .ok_or_else(|| DbError::BTree(format!("BTreeNode {} has no children but was treated as internal node. Keys: {:?}", node.index, node.keys)))?
-                };
+                // Otherwise, descend to child that could contain ≥ key
+                let child_idx = node.children[child_pos];
+                let (removed, needs_rebalance) = remove_at_least_recursive(btree, child_idx, key, storage)?;
+                if needs_rebalance {
+                    btree.rebalance_child(&mut node, child_pos, storage)?;
+                }
+                btree.write_node(&node, storage)?;
+                return Ok((removed, !node.is_root && node.keys.len() < MIN_KEYS));
             }
         }
+
+        let (removed, _underflow) = remove_at_least_recursive(self, self.root_index, &sql_value, storage)?;
+
+        // After removal, check for root shrink (like in delete)
+        let root = self.load_node(self.root_index, storage)?;
+        if root.keys.is_empty() && !root.is_leaf {
+            let new_root_idx = root.children[0];
+            let mut new_root = self.load_node(new_root_idx, storage)?;
+            new_root.is_root = true;
+            self.write_node(&new_root, storage)?;
+            self.root_index = new_root_idx;
+        }
+
+        Ok(removed)
     }
+
+    
 
 
 
@@ -453,7 +447,6 @@ impl Btree{
         sql_value: SqlValue,
         storage: &StorageManager,
     ) -> Result<Option<(BtreeNode, Option<Triplet>)>, DbError> {
-        // Build the same logical filename registered earlier:
         let logical_name = self.btree_name_file.clone();
         let handle = storage.get_handle(&logical_name).ok_or_else(|| {
             DbError::Io(std::io::Error::new(
@@ -461,18 +454,16 @@ impl Btree{
                 format!("B-tree file not registered: {}", logical_name),
             ))
         })?;
-
+    
         let mut index = self.root_index;
-
+    
         loop {
-            // Read the full 1024-byte page
             let mut buf = vec![0u8; PAGE_SIZE];
             handle.read_at((index * PAGE_SIZE) as u64, &mut buf)?;
-
-            // Decode into a BtreeNode
+    
             let (node, _): (BtreeNode, usize) = bintuco::decode_from_slice(&buf)
                 .map_err(|e| DbError::Bintuco(e.to_string()))?;
-
+    
             if node.is_leaf {
                 // At a leaf, look for an exact match
                 let triplet_opt = node
@@ -480,21 +471,21 @@ impl Btree{
                     .iter()
                     .find(|t| t.key == sql_value)
                     .cloned();
-
                 return Ok(Some((node, triplet_opt)));
             } else {
-                // Not a leaf: use find_child_read to decide where to go
-                match node.find_child_read(&sql_value)? {
-                    FindResult::ExactMatch(triplet) => {
-                        return Ok(Some((node, Some(triplet))));
-                    }
-                    FindResult::ChildIndex(child_idx) => {
-                        index = child_idx;
-                    }
+                // Not a leaf: look for an exact match in this node
+                if let Some(triplet) = node.keys.iter().find(|t| t.key == sql_value).cloned() {
+                    // Found the exact value in the internal node itself!
+                    return Ok(Some((node, Some(triplet))));
                 }
+                // Otherwise, descend to the appropriate child
+                let child_pos = node.keys.iter().position(|t| t.key > sql_value)
+                    .unwrap_or(node.children.len() - 1);
+                index = node.children[child_pos];
             }
         }
     }
+    
     
 
     /// Traverse from the root down to the leaf that should contain `triplet.key`.
