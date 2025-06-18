@@ -887,7 +887,7 @@ impl DatabaseEngine {
     //NEW More General
     pub fn infer_column_type(samples: &[String]) -> SqlColumnType {
         
-        /* // Sometimes give problem for large variable dataset
+        // Sometimes give problem for large variable dataset
         // if *every* non-empty sample parses as an i32, call it INT
         let all_int = samples.iter().filter_map(|s| {
             let t = s.trim();
@@ -897,7 +897,7 @@ impl DatabaseEngine {
         if all_int {
             return SqlColumnType::INT;
         }
-        */
+        
         // otherwise, if *every* non-empty sample parses as an f32, call it FLOAT
         let all_float = samples.iter().filter_map(|s| {
             let t = s.trim();
@@ -1568,6 +1568,7 @@ impl DatabaseEngine {
                 self.db_page
                     .create_secondary_index(&table, &column, &mut self.storage_manager)?;
                 
+                
                 // Realease Journal
                 self.storage_manager.journal = old_page_journal;
 
@@ -1890,7 +1891,7 @@ pub fn evaluate_predicate(
     schema: &TableSchema,
     expr: &Expression,
 ) -> Result<bool, DbError> {
-    eprintln!("→ evaluate_predicate: {:?}", expr);
+    //eprintln!("→ evaluate_predicate: {:?}", expr);
 
     let result = match expr {
         Expression::LogicalOp { left, op, right } => {
@@ -1900,7 +1901,7 @@ pub fn evaluate_predicate(
                 LogicalOperator::And => l && r,
                 LogicalOperator::Or => l || r,
             };
-            eprintln!("  LogicalOp {:?}: left={} right={} → {}", op, l, r, res);
+            //eprintln!("  LogicalOp {:?}: left={} right={} → {}", op, l, r, res);
             Ok(res)
         }
 
@@ -1908,30 +1909,30 @@ pub fn evaluate_predicate(
             // Evaluate left expr
             let lval = eval_expr(row, schema, left)?;
             let ltype = expr_output_type(left, schema);
-            println!("x999 ltype{:?}", ltype);
+            //println!("x999 ltype{:?}", ltype);
             // Evaluate right expr, coercing literals to ltype if possible
             let rval = match (&**right, &ltype) {
                 (Expression::Literal(raw), Some(ty)) => {
                     let v = parse_literal_as_column_type(raw, ty)?;
-                    eprintln!("    Coerced right literal {:?} to type {:?} → {:?}", raw, ty, v);
+                    //eprintln!("    Coerced right literal {:?} to type {:?} → {:?}", raw, ty, v);
                     v
                 }
                 _ => {
                     let v = eval_expr(row, schema, right)?;
-                    eprintln!("    Evaluated right expr = {:?}", v);
+                    //eprintln!("    Evaluated right expr = {:?}", v);
                     v
                 }
             };
 
             let cmp = compare_sqlvalue(&lval, &rval, op);
-            eprintln!("  → compare_sqlvalue: {:?} {:?} {:?} = {}", lval, op, rval, cmp);
+            //eprintln!("  → compare_sqlvalue: {:?} {:?} {:?} = {}", lval, op, rval, cmp);
             Ok(cmp)
         }
 
         other => Err(DbError::Planner(format!("Unsupported predicate node: {:?}", other))),
     };
 
-    eprintln!("← predicate result: {:?}\n", result);
+    //eprintln!("← predicate result: {:?}\n", result);
     result
 }
 fn expr_output_type(expr: &Expression, schema: &TableSchema) -> Option<SqlColumnType> {

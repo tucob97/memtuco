@@ -1902,7 +1902,7 @@ impl TableRoot {
         // 4) Remove old secondary‐index entries
         for idx in &mut self.index_vec {
             if let Some(pos) = self.tb_schema.name_col.iter().position(|c| c == &idx.key_name) {
-                let _ = idx.search_and_remove_value_at_least(old_row.values[pos].clone(), storage);
+                let _ = idx.delete(&old_row.values[pos], storage)?;
             }
         }
 

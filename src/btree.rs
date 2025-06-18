@@ -589,8 +589,10 @@ impl Btree {
             let mid = target_node.keys.len() / 2;
             let promote_key = target_node.keys[mid].clone();
 
-            // For a leaf, sibling gets keys from mid onward; target_node keeps the first half
-            sibling.keys = target_node.keys.split_off(mid);
+            // CORRECT: sibling gets keys after the median (removes median from both children)
+            let right_keys = target_node.keys.split_off(mid + 1); // right sibling gets mid+1..end
+            target_node.keys.truncate(mid); // left keeps 0..mid
+            sibling.keys = right_keys;
 
             // 4) Write both updated nodes back to disk
             write_node(&target_node, storage, &self.btree_name_file)?;
@@ -908,6 +910,179 @@ impl Btree {
         Ok(triplet_iter.map(|res| res.map(|triplet| triplet.page)))
     }
 }
+
+// Choose the minimum number of keys a non-root node can have.
+pub const MIN_KEYS: usize = 1;
+
+impl Btree{
+    
+    // Helper to write a node to disk
+    fn write_node(&self, node: &BtreeNode, storage: &StorageManager) -> Result<(), DbError> {
+        let mut buf = vec![0u8; PAGE_SIZE];
+        let enc = bintuco::encode_to_vec(node).map_err(|e| DbError::Bintuco(e.to_string()))?;
+        buf[..enc.len()].copy_from_slice(&enc);
+        storage.write_page(&self.btree_name_file, (node.index * PAGE_SIZE) as u64, &buf)
+    }
+
+    // Find and return the maximum Triplet in a subtree (rightmost descendant)
+    fn get_max_triplet(&self, mut node_idx: usize, storage: &StorageManager) -> Result<Triplet, DbError> {
+        loop {
+            let node = self.load_node(node_idx, storage)?;
+            if node.is_leaf {
+                return node.keys.last()
+                    .cloned()
+                    .ok_or_else(|| DbError::BTree("No max key found in leaf".into()));
+            }
+            node_idx = *node.children.last().unwrap();
+        }
+    }
+
+    pub fn delete(
+        &mut self,
+        del_key: &SqlValue,
+        storage: &StorageManager,
+    ) -> Result<(), DbError> {
+        // Begin recursive delete at root
+        let root_underflow = self.delete_recursive(self.root_index, del_key, storage)?;
+
+        // After delete, if root is internal and empty, promote its only child
+        let root = self.load_node(self.root_index, storage)?;
+        if root.keys.is_empty() && !root.is_leaf {
+            let new_root_idx = root.children[0];
+            let mut new_root = self.load_node(new_root_idx, storage)?;
+            new_root.is_root = true;
+            self.write_node(&new_root, storage)?;
+            self.root_index = new_root_idx;
+        }
+        Ok(())
+    }
+
+    fn delete_recursive(
+        &mut self,
+        node_idx: usize,
+        del_key: &SqlValue,
+        storage: &StorageManager,
+    ) -> Result<bool, DbError> {
+        let mut node = self.load_node(node_idx, storage)?;
+
+        // If leaf, remove directly
+        if node.is_leaf {
+            if let Some(pos) = node.keys.iter().position(|t| &t.key == del_key) {
+                node.keys.remove(pos);
+                self.write_node(&node, storage)?;
+                let underflow = !node.is_root && node.keys.len() < MIN_KEYS;
+                return Ok(underflow);
+            }
+            return Ok(false);
+        }
+
+        // Find the child to recurse into
+        let mut child_pos = 0;
+        while child_pos < node.keys.len() && node.keys[child_pos].key < *del_key {
+            child_pos += 1;
+        }
+
+        // If key is in this internal node, replace it with predecessor and recursively delete pred from left
+        if child_pos < node.keys.len() && node.keys[child_pos].key == *del_key {
+            let pred_child_idx = node.children[child_pos];
+            let predecessor = self.get_max_triplet(pred_child_idx, storage)?;
+            node.keys[child_pos] = predecessor.clone();
+            self.write_node(&node, storage)?;
+            let needs_rebalance = self.delete_recursive(pred_child_idx, &predecessor.key, storage)?;
+            if needs_rebalance {
+                self.rebalance_child(&mut node, child_pos, storage)?;
+            }
+            self.write_node(&node, storage)?;
+            return Ok(!node.is_root && node.keys.len() < MIN_KEYS);
+        } else {
+            // Descend to child node
+            let child_idx = node.children[child_pos];
+            let needs_rebalance = self.delete_recursive(child_idx, del_key, storage)?;
+            if needs_rebalance {
+                self.rebalance_child(&mut node, child_pos, storage)?;
+            }
+            self.write_node(&node, storage)?;
+            return Ok(!node.is_root && node.keys.len() < MIN_KEYS);
+        }
+    }
+        
+
+    // Rebalance logic (borrowing/merging children as needed)
+    fn rebalance_child(
+        &mut self,
+        parent: &mut BtreeNode,
+        child_pos: usize,
+        storage: &StorageManager,
+    ) -> Result<(), DbError> {
+        let child_idx = parent.children[child_pos];
+        let mut child = self.load_node(child_idx, storage)?;
+
+        // Try to borrow from left sibling
+        if child_pos > 0 {
+            let left_idx = parent.children[child_pos - 1];
+            let mut left = self.load_node(left_idx, storage)?;
+            if left.keys.len() > MIN_KEYS {
+                // Steal last key from left sibling
+                child.keys.insert(0, parent.keys[child_pos - 1].clone());
+                parent.keys[child_pos - 1] = left.keys.pop().unwrap();
+                if !child.is_leaf {
+                    let moved_child = left.children.pop().unwrap();
+                    child.children.insert(0, moved_child);
+                }
+                self.write_node(&left, storage)?;
+                self.write_node(&child, storage)?;
+                self.write_node(parent, storage)?;
+                return Ok(());
+            }
+        }
+        // Try to borrow from right sibling
+        if child_pos + 1 < parent.children.len() {
+            let right_idx = parent.children[child_pos + 1];
+            let mut right = self.load_node(right_idx, storage)?;
+            if right.keys.len() > MIN_KEYS {
+                child.keys.push(parent.keys[child_pos].clone());
+                parent.keys[child_pos] = right.keys.remove(0);
+                if !child.is_leaf {
+                    let moved_child = right.children.remove(0);
+                    child.children.push(moved_child);
+                }
+                self.write_node(&right, storage)?;
+                self.write_node(&child, storage)?;
+                self.write_node(parent, storage)?;
+                return Ok(());
+            }
+        }
+        // Merge needed
+        if child_pos > 0 {
+            // Merge left sibling and child
+            let left_idx = parent.children[child_pos - 1];
+            let mut left = self.load_node(left_idx, storage)?;
+            left.keys.push(parent.keys.remove(child_pos - 1));
+            left.keys.append(&mut child.keys);
+            if !left.is_leaf {
+                left.children.append(&mut child.children);
+            }
+            parent.children.remove(child_pos);
+            self.write_node(&left, storage)?;
+            self.write_node(parent, storage)?;
+        } else {
+            // Merge child and right sibling
+            let right_idx = parent.children[child_pos + 1];
+            let mut right = self.load_node(right_idx, storage)?;
+            child.keys.push(parent.keys.remove(child_pos));
+            child.keys.append(&mut right.keys);
+            if !child.is_leaf {
+                child.children.append(&mut right.children);
+            }
+            parent.children.remove(child_pos + 1);
+            self.write_node(&child, storage)?;
+            self.write_node(parent, storage)?;
+        }
+        Ok(())
+    }
+
+}
+
 
 // ══════════════════════════════════════ BTree Triplet Iterator ══════════════════════════════════════
 
