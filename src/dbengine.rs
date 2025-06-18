@@ -1674,16 +1674,33 @@ impl DatabaseEngine {
         let (restored_page, _) = bintuco::decode_from_slice(&buf)
             .map_err(|e| DbError::Bintuco(e.to_string()))?;
 
+        // --- START OF FIX ---
+
+        // 1. Set the restored page as the current page.
+        //    IT CONTAINS THE CORRECT B-TREE STATE. DO NOT REBUILD IT.
         self.db_page = restored_page;
 
-        let mut new_roots = Vec::with_capacity(self.db_page.all_tableroot.len());
-        for existing in self.db_page.all_tableroot.clone().into_iter() {
-            let schema = existing.tb_schema.clone();
-            let table_root = TableRoot::from_schema(schema, &self.db_folder, &mut self.storage_manager)?;
-            new_roots.push(table_root);
+        // 2. The B-Trees in memory are now correct. We just need to ensure
+        //    the StorageManager knows about all the files they need.
+        //    This loop re-registers the files for the now-correct tables.
+        for tr in &self.db_page.all_tableroot {
+            // Register the main table data file
+            self.storage_manager.register_file(&tr.name_file)?;
+
+            // Register the free-space metadata index file
+            let meta_logical = format!("{}.meta.idx", tr.tb_schema.name);
+            self.storage_manager.register_file(&meta_logical)?;
+
+            // Register all other index files (.idx)
+            for btree in &tr.index_vec {
+                self.storage_manager.register_file(&btree.btree_name_file)?;
+            }
         }
-        self.db_page.all_tableroot = new_roots;
+
+        // 3. Reload the catalog from the now-correct page.
         self.reload_catalog();
+
+        // --- END OF FIX ---
         Ok(())
     }
 }

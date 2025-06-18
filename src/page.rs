@@ -1403,6 +1403,49 @@ impl TableRoot {
         storage: &StorageManager,
     ) -> Result<(), DbError> {
 
+        // This piece of code commented is for check
+        // uniqueness in all index + primary key. But by default
+        // index has not to be unique.
+        /*
+        // --- START OF UNIQUE CONSTRAINT PRE-CHECK ---
+        // Loop through all B-Tree indexes associated with this table.
+        for btree in &self.index_vec {
+            // Find the column this index corresponds to.
+            if let Some(key_pos) = self.tb_schema.name_col.iter().position(|n| n == &btree.key_name) {
+                let key_val = &row.values[key_pos];
+
+                // Perform a read-only search to see if the key already exists.
+                if let Some((_node, Some(_triplet))) = btree.search_value(key_val.clone(), storage)? {
+                    // If a triplet is found, the key exists. Abort the entire insertion.
+                    return Err(DbError::BTree(format!(
+                        "UNIQUE constraint violation: Key {:?} already exists in index '{}'",
+                        key_val, btree.key_name
+                    )));
+                }
+            }
+        }
+        // --- END OF PRE-CHECK ---
+        */
+
+        // So i move to this code
+        if let Some(pk_name) = &self.tb_schema.primary_key {
+            if let Some(pk_col_idx) = self.tb_schema.name_col.iter().position(|c| c == pk_name) {
+                let pk_val = &row.values[pk_col_idx];
+                if let Some(pk_btree) = self.index_vec.iter_mut().find(|bt| bt.key_name == *pk_name) {
+                    if let Ok(Some((_node, Some(_)))) = pk_btree.search_value(pk_val.clone(), storage) {
+                        // If a triplet is found, the key exists. Abort the entire insertion.
+                        return Err(DbError::BTree(format!(
+                            "Constraint violation for PRIMARY KEY: Key {:?} already exists in index '{}'",
+                            pk_name, pk_val
+                        )));
+                    }
+                }
+            }
+        }
+
+
+
+
         // 1) Determine which page to write into (or allocate a new one)
         let row_enc_len = row.to_bytes()?.len();
         let (idx_free, is_new) =
@@ -1984,6 +2027,52 @@ impl TableRoot {
             }
             Row::from_bytes(&bytes)?
         };
+
+        // By default Index is not unique, so this constraint
+        // is not necessary
+        /*
+        // --- START OF MODIFICATION  ---
+        // Pre-flight checks. Abort if any new key would violate a unique constraint.
+        // This pass does not modify any B-tree.
+        for btree in &mut self.index_vec {
+            if let Some(key_pos) = self.tb_schema.name_col.iter().position(|c| c == &btree.key_name) {
+                let old_key = &old_row.values[key_pos];
+                let new_key = &new_row.values[key_pos];
+
+                // If an indexed key is changing, check if the new value already exists.
+                if old_key != new_key {
+                    if let Some((_node, Some(_triplet))) = btree.search_value(new_key.clone(), storage)? {
+                        return Err(DbError::BTree(format!(
+                            "UPDATE failed: UNIQUE constraint violation. Key {:?} already exists in index '{}'",
+                            new_key, btree.key_name
+                        )));
+                    }
+                }
+            }
+        }
+        // --- END OF MODIFICATION ---
+        */
+
+        // So only unique constraint is for primary key
+        if let Some(pk_name) = &self.tb_schema.primary_key {
+            if let Some(pk_col_idx) = self.tb_schema.name_col.iter().position(|c| c == pk_name) {
+                let old_key = &old_row.values[pk_col_idx];
+                let new_key = &new_row.values[pk_col_idx];
+                if old_key != new_key {
+                    if let Some(pk_btree) = self.index_vec.iter_mut().find(|bt| bt.key_name == *pk_name) {
+                        // Only check PK uniqueness if changing the PK value
+                        if let Some((_node, Some(_triplet))) = pk_btree.search_value(new_key.clone(), storage)? {
+                            return Err(DbError::Page(format!(
+                                "UPDATE failed: Duplicate entry for PRIMARY KEY '{}': {}",
+                                pk_name, new_key
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+
+
 
         // Free the old overflow‐chain pages (mark them with OVERFLOW_KEY)
         {

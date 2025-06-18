@@ -275,7 +275,7 @@ impl Btree{
             })
         } else {
             // ─── File already has ≥1 page. Decode page 0 from disk ───
-
+ 
             // 4a) Read exactly PAGE_SIZE bytes from offset 0
             let mut buf = vec![0u8; PAGE_SIZE];
             handle.read_at(0, &mut buf)?;
@@ -302,7 +302,9 @@ impl Btree{
                 btree_name_file,
                 // node_counter = “first unused page index”
                 node_counter: next_counter,
-                // We always assume the on‐disk root is page 0
+                // In reality we want always assume the on‐disk root is page 0
+                // But we have bug if root_index = 0  here
+                // Because our root is moving around!
                 root_index: 0,
             })
         }
